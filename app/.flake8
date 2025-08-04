@@ -1,0 +1,8 @@
+[flake8]
+
+exclude = 
+    .gitignore,
+    __pycache__,
+    migrations,
+    manage.py,
+    settings.py
