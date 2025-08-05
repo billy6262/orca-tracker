@@ -7,6 +7,8 @@ class UserManager(BaseUserManager):
     
     def create_user(self, email, password=None, **extra_fields):
         """Create and return a user with an email and password."""
+        if not email:
+            raise ValueError('The Email  field is required')
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password) # Hash the password
