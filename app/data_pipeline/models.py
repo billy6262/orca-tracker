@@ -15,3 +15,12 @@ class OrcaSighting(models.Model):
     reportsIn24h = models.PositiveIntegerField()
     reportsInAdjacentZonesIn5h = models.PositiveIntegerField() # imeadiately adjacent zones
     reportsInAdjacentPlusZonesIn5h = models.PositiveIntegerField() # next adjacent zones
+
+
+class RawReport(models.Model):
+    """Model to store raw email reports."""
+    timeRecived = models.DateTimeField(auto_now_add=True)
+    body = models.TextField()
+    processed = models.BooleanField(default=False)
+    subject = models.CharField(max_length=255)
+    sender = models.CharField(max_length=255)
