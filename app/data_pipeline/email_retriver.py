@@ -15,10 +15,11 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 def get_gmail_service():
     creds = None
     # Look for credentials in the app directory
-    APP_DIR = '/app'
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Go up to project root
+    SECRETS_DIR = os.path.join(BASE_DIR, 'secrets')
+    TOKEN_PATH = os.path.join(SECRETS_DIR, 'token.json')
+    CREDS_PATH = os.path.join(SECRETS_DIR, 'credentials.json')
     
-    TOKEN_PATH = os.path.join(APP_DIR, 'token.json')
-    CREDS_PATH = os.path.join(APP_DIR, 'credentials.json')
     # The file token.json stores the user's access and refresh tokens.
     if os.path.exists(TOKEN_PATH):
         creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
