@@ -1,8 +1,8 @@
 from django.test import TestCase
 from unittest.mock import patch, MagicMock
 import base64
-from .email_retriver import get_emails
-from .models import RawReport
+from ..email_retriver import get_emails
+from ..models import RawReport
 
 class EmailRetrieverTests(TestCase):
     @patch('data_pipeline.email_retriver.get_gmail_service')
