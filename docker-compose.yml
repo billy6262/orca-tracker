@@ -1,0 +1,37 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        - DEV=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+      - ./secrets:/secrets:ro
+      - ../Raw_text_reports:/app/txt_reports  # Mount the raw reports folder
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=orca_tracker
+      - DB_USER=orca
+      - DB_PASS=orca
+      - OPENAI_MODEL=gpt-5-nano
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13-alpine
+    volumes:
+      - dev-db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=orca
+      - POSTGRES_PASSWORD=orca
+      - POSTGRES_DB=orca_tracker
+
+
+volumes:
+  dev-db-data:
