@@ -7,7 +7,7 @@ import base64
 from datetime import datetime
 from ..email_processor import (
     _extract_sightings, _create_sighting, _coerce_int, _calc_derived_fields,
-    process_unprocessed_reports, process_txt_files_from_folder
+    process_unprocessed_reports, process_txt_files_from_nested_folders
 )
 from ..models import RawReport, OrcaSighting
 
@@ -174,100 +174,51 @@ class EmailProcessorTests(TestCase):
         
         # Check that _create_sighting was called for each report
         self.assertEqual(mock_create_sighting.call_count, 2)
-    
-    def test_process_txt_files_from_folder_no_folder(self):
-        """Test processing with non-existent folder"""
-        with patch('data_pipeline.email_processor.logger') as mock_logger:
-            process_txt_files_from_folder("/nonexistent/path")
-            mock_logger.error.assert_called_with("Folder does not exist: /nonexistent/path")
-    
-    @patch('data_pipeline.email_processor._extract_sightings')
-    @patch('data_pipeline.email_processor._create_sighting')
+
+
+    @patch('data_pipeline.email_processor.read_file_with_encoding_detection')
     @patch('os.listdir')
     @patch('os.path.exists')
-    @patch('os.makedirs')
-    @patch('os.rename')
-    def test_process_txt_files_success(self, mock_rename, mock_makedirs, mock_exists, mock_listdir, mock_create_sighting, mock_extract):
-        """Test successful txt file processing"""
-        # Setup mocks
-        def exists_side_effect(path):
-            if "test_folder" in path and not "processed" in path:
-                return True
-            elif "processed" in path:
-                return False  # processed folder doesn't exist initially
-            return False
+    @patch('os.path.isdir')
+    @patch('os.path.isfile')
+    def test_process_nested_folders_skips_processed(self, mock_isfile, mock_isdir, mock_exists, mock_listdir, mock_read_file):
+        """Test that process_txt_files_from_nested_folders skips 'processed' folders"""
+        # Setup mock filesystem structure
+        def mock_listdir_side_effect(path):
+            if path == "/test_folder":
+                return ["2024"]
+            elif path == "/test_folder/2024":
+                return ["January", "February", "processed"]  # Should skip the 'processed' folder
+            elif path == "/test_folder/2024/January":
+                return ["2024_January_01.txt", "2024_January_02.txt"]
+            elif path == "/test_folder/2024/February":
+                return ["2024_February_01.txt"]
+            elif path == "/test_folder/2024/processed":
+                return ["old_file.txt"]  # This should be skipped
+            return []
         
-        mock_exists.side_effect = exists_side_effect
-        mock_listdir.return_value = ["report1.txt", "report2.txt", "notxt.pdf"]
+        def mock_isdir_side_effect(path):
+            return "processed" in path or "January" in path or "February" in path or path.endswith("2024")
         
-        mock_extract.return_value = [
-            {
-                "time": "2024-08-13T10:30:00Z",
-                "zone": "6",
-                "direction": "N",
-                "count": 3
-            }
-        ]
+        def mock_isfile_side_effect(path):
+            return path.endswith(".txt")
         
-        test_content = "Orcas spotted at Lime Kiln Point"
-        
-        with patch('builtins.open', mock_open(read_data=test_content)):
-            process_txt_files_from_folder("/test_folder", move_processed=True)
-        
-        # Check that RawReports were created (2 txt files)
-        txt_reports = RawReport.objects.filter(messageId__startswith="txt_file_")
-        self.assertEqual(txt_reports.count(), 2)
-        
-        # Check that _create_sighting was called for each file
-        self.assertEqual(mock_create_sighting.call_count, 2)
-        
-        # Check that files were "moved" (renamed)
-        self.assertEqual(mock_rename.call_count, 2)
-    
-    @patch('data_pipeline.email_processor._extract_sightings')
-    @patch('os.listdir')
-    @patch('os.path.exists')
-    def test_process_txt_files_no_txt_files(self, mock_exists, mock_listdir, mock_extract):
-        """Test processing folder with no .txt files"""
+        mock_listdir.side_effect = mock_listdir_side_effect
+        mock_isdir.side_effect = mock_isdir_side_effect  
+        mock_isfile.side_effect = mock_isfile_side_effect
         mock_exists.return_value = True
-        mock_listdir.return_value = ["file1.pdf", "file2.doc"]
+        mock_read_file.return_value = "Test sighting content"
         
-        with patch('data_pipeline.email_processor.logger') as mock_logger:
-            process_txt_files_from_folder("/test_folder")
-            mock_logger.info.assert_called_with("No .txt files found in /test_folder")
-    
-    @patch('data_pipeline.email_processor._extract_sightings')
-    @patch('os.listdir')
-    @patch('os.path.exists')
-    def test_process_txt_files_duplicate_skip(self, mock_exists, mock_listdir, mock_extract):
-        """Test that duplicate txt files are skipped"""
-        mock_exists.return_value = True
-        mock_listdir.return_value = ["duplicate.txt"]
-        
-        # Create existing report with same messageId
-        RawReport.objects.create(
-            messageId="txt_file_duplicate",
-            subject="Existing",
-            sender="txt_file_import",
-            body="existing content"
-        )
-        
-        test_content = "New content"
-        
-        with patch('builtins.open', mock_open(read_data=test_content)):
+        with patch('data_pipeline.email_processor._extract_sightings', return_value=[]):
             with patch('data_pipeline.email_processor.logger') as mock_logger:
-                process_txt_files_from_folder("/test_folder")
-                mock_logger.info.assert_called_with("File duplicate.txt already processed, skipping")
-    
-    @patch('data_pipeline.email_processor._extract_sightings')
-    @patch('os.listdir')
-    @patch('os.path.exists')
-    def test_process_txt_files_file_error(self, mock_exists, mock_listdir, mock_extract):
-        """Test handling of file read errors"""
-        mock_exists.return_value = True
-        mock_listdir.return_value = ["error.txt"]
-        
-        with patch('builtins.open', side_effect=IOError("File read error")):
-            with patch('data_pipeline.email_processor.logger') as mock_logger:
-                process_txt_files_from_folder("/test_folder")
-                mock_logger.exception.assert_called()
+                process_txt_files_from_nested_folders("/test_folder", move_processed=False)
+                
+                # Verify that processed folder was detected and logged
+                mock_logger.info.assert_any_call("Skipping 1 processed folder(s) in 2024: ['processed']")
+                
+                # Verify that only January and February files were processed (3 total files)
+                # We should see processing messages for these months but not for processed folder
+                processing_calls = [call for call in mock_logger.info.call_args_list 
+                                  if "Processing 2024" in str(call)]
+                self.assertTrue(any("January" in str(call) for call in processing_calls))
+                self.assertTrue(any("February" in str(call) for call in processing_calls))

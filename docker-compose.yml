@@ -19,12 +19,14 @@ services:
       - DB_NAME=orca_tracker
       - DB_USER=orca
       - DB_PASS=orca
-      - OPENAI_MODEL=gpt-5-nano
+      - OPENAI_MODEL=gpt-5-mini
     depends_on:
       - db
 
   db:
     image: postgres:13-alpine
+    ports:
+      - "5432:5432"
     volumes:
       - dev-db-data:/var/lib/postgresql/data
     environment:

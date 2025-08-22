@@ -10,7 +10,7 @@ import chardet  # Add this import for encoding detection
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-5-nano")
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-5")
 
 # Global client variable - will be initialized when needed
 _client = None
@@ -162,7 +162,7 @@ Rules:
 - If no Orca mentioned, return an empty sightings array.
 - Normalize direction to a short cardinal/ordinal if possible (N,S,E,W,NE,NW,SE,SW) else 'unknown'.
 - If time not explicitly given, omit the sighting (do not guess).
-- Convert all times to ISO 8601; if date missing assume today's date in reporter's apparent timezone, else leave; (the backend may adjust later).
+- Convert all times to ISO 8601; if date missing assume today's date in reporter's apparent timezone, else leave.
 - Count: if a range like 6-8, take midpoint (7). If vague like "several", use a reasonable guess: several=5, few=3, couple=2, many=10, pod=6. If calves mentioned add them.
 
 Zone Reference:
@@ -184,6 +184,7 @@ Zone Reference:
 16 South Sound East Basins - Commencement Bay, Colvos south mouth, Dana Passage, Budd Inlet, Henderson Inlet, Nisqually Reach, Devils Head/Anderson Ketron
 
 Return only zones 1-16 as above. If a location is not clearly in one of these zones, pick the nearest zone.
+Use zone numbers rather than names.
 Return ONLY JSON compliant with the provided schema.
 Email body:
 ---
@@ -315,6 +316,7 @@ def process_unprocessed_reports(limit: int = 25):
 def process_txt_files_from_nested_folders(base_folder_path: str, move_processed: bool = True, year_filter: List[int] = None, month_filter: List[str] = None):
     """
     Process all .txt files from the nested year/month folder structure created by txt_fetcher.py.
+    Skips files that are in folders named "processed" to avoid reprocessing already handled reports.
     
     Args:
         base_folder_path: Path to base folder containing year folders (e.g., Raw_text_reports)
@@ -347,9 +349,14 @@ def process_txt_files_from_nested_folders(base_folder_path: str, move_processed:
     for year_folder in sorted(year_folders):
         year_path = os.path.join(base_folder_path, year_folder)
         
-        # Get all month folders within this year
-        month_folders = [f for f in os.listdir(year_path) 
-                        if os.path.isdir(os.path.join(year_path, f))]
+        # Get all month folders within this year (excluding "processed" folders)
+        all_folders = [f for f in os.listdir(year_path) 
+                      if os.path.isdir(os.path.join(year_path, f))]
+        processed_folders = [f for f in all_folders if f.lower() == "processed"]
+        month_folders = [f for f in all_folders if f.lower() != "processed"]
+        
+        if processed_folders:
+            logger.info(f"Skipping {len(processed_folders)} processed folder(s) in {year_folder}: {processed_folders}")
         
         # Filter months if specified
         if month_filter:
@@ -364,9 +371,22 @@ def process_txt_files_from_nested_folders(base_folder_path: str, move_processed:
         for month_folder in sorted(month_folders):
             month_path = os.path.join(year_path, month_folder)
             
-            # Get all .txt files in this month folder
-            txt_files = [f for f in os.listdir(month_path) 
-                        if f.lower().endswith('.txt') and os.path.isfile(os.path.join(month_path, f))]
+            # Skip processing if this is a "processed" folder
+            if month_folder.lower() == "processed":
+                logger.debug(f"Skipping processed folder: {month_path}")
+                continue
+            
+            # Get all .txt files in this month folder (excluding files in "processed" subfolder)
+            all_files = []
+            for item in os.listdir(month_path):
+                item_path = os.path.join(month_path, item)
+                if os.path.isfile(item_path) and item.lower().endswith('.txt'):
+                    all_files.append(item)
+                elif os.path.isdir(item_path) and item.lower() == "processed":
+                    # Skip files in processed subfolder
+                    logger.debug(f"Skipping files in processed subfolder: {item_path}")
+            
+            txt_files = all_files
             
             if not txt_files:
                 logger.debug(f"No .txt files found in {month_path}")
