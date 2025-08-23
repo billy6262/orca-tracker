@@ -25,3 +25,20 @@ class OrcaSighting(models.Model):
     reportsIn24h = models.PositiveIntegerField()
     reportsInAdjacentZonesIn5h = models.PositiveIntegerField() # immediately adjacent zones
     reportsInAdjacentPlusZonesIn5h = models.PositiveIntegerField() # next adjacent zones
+
+
+class Zone(models.Model):
+    """Model to store geographic zones."""
+    name = models.CharField(max_length=100, unique=True)
+    zoneNumber = models.PositiveIntegerField(primary_key=True)
+    adjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='adjacent_to')
+    nextAdjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='next_adjacent_to')
+    boundary = models.TextField()  # GeoJSON or WKT representation
+    localities = models.TextField()  # List of localities within the zone
+
+class Prediction(models.Model):
+    """Model to store predictions about Orca sightings."""
+    orca_sighting = models.ForeignKey(OrcaSighting, on_delete=models.CASCADE, related_name='predictions')
+    predicted_time = models.DateTimeField()
+    predicted_zone = models.CharField(max_length=100)
+    confidence = models.FloatField()
