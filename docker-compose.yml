@@ -1,14 +1,15 @@
 services:
   app:
     build:
-      context: .
+      context: ./orca-tracker
       args:
         - DEV=true
+    working_dir: /app
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app
-      - ./secrets:/secrets:ro
+      - ./orca-tracker/app:/app
+      - ./orca-tracker/secrets:/secrets:ro
     command: >
       sh -c "python manage.py wait_for_db &&
              python manage.py migrate &&
@@ -21,6 +22,20 @@ services:
       - OPENAI_MODEL=gpt-5-mini
     depends_on:
       - db
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: >
+      sh -lc "npm install && npm run dev -- --host"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - app
 
   db:
     image: postgres:13-alpine
