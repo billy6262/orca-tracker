@@ -44,4 +44,7 @@
 /* Offset content for fixed-top navbar (default ~56px) */
 body {
   padding-top: 56px;
+  background-color: #f0f8ff; /* Light blue */
+  /* or */
+  background: linear-gradient(135deg, #02197ee3 0%, #4c4ba2af 100%); /* Gradient */
 }
