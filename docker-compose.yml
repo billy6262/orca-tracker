@@ -33,6 +33,14 @@ services:
       - "5173:5173"
     depends_on:
       - app
+    develop:
+      watch:
+        - action: sync
+          paths:
+            - ./frontend/src
+            - ./frontend/public
+          target: /usr/src/app
+
 
   db:
     image: postgres:13-alpine

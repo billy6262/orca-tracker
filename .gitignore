@@ -22,6 +22,7 @@ frontend/.vite/
 **/__pycache__/
 **/*.py[cod]
 *$py.class
+orca-tracker/app/staticfiles/
 
 # Build/packaging
 **/build/

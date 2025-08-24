@@ -40,3 +40,8 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Offset content for fixed-top navbar (default ~56px) */
+body {
+  padding-top: 56px;
+}
