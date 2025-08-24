@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from app.data_pipeline.models import RawReport, OrcaSighting, Prediction
+from data_pipeline.models import RawReport, OrcaSighting, Prediction
 
 
 class OrcaSightingSerializer(serializers.ModelSerializer):

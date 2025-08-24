@@ -16,9 +16,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+import app.views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/schema/', SpectacularAPIView.as_view(), name='api-schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='api-schema'), name='api-docs'),
+    
+    # API endpoints
+    path('api/reports/<str:start_date>/<str:end_date>/', app.views.get_raw_reports_by_date_range, name='raw-reports-by-date'),
+    path('api/sightings/<str:start_date>/<str:end_date>/', app.views.get_sightings_by_date_range, name='sightings-by-date'),
+    path('api/predictions/future/', app.views.get_future_predictions, name='future-predictions'),
+    path('api/predictions/<str:start_date>/<str:end_date>/', app.views.get_predictions_by_date_range, name='predictions-by-date'),
 ]
