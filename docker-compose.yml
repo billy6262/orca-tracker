@@ -1,3 +1,5 @@
+name: orca-tracker
+
 services:
   app:
     build:
@@ -13,6 +15,7 @@ services:
     command: >
       sh -c "python manage.py wait_for_db &&
              python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
              gunicorn app.wsgi:application --config gunicorn.conf.py"
     environment:
       - DB_HOST=db
@@ -24,16 +27,10 @@ services:
       - db
 
   frontend:
-    image: node:22-alpine
-    working_dir: /app
+    build:
+      context: ./frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-    command: >
-      sh -lc "npm install && npm run dev -- --host"
-    environment:
-      - NODE_ENV=development
     depends_on:
       - app
 
