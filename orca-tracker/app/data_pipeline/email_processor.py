@@ -7,6 +7,8 @@ from django.db import transaction
 import openai
 from .models import RawReport, OrcaSighting
 import chardet  # Add this import for encoding detection
+import time
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -249,53 +251,85 @@ def _extract_sightings(body: str) -> List[Dict[str, Any]]:
     if not body.strip():
         return []
     
-    try:
-        client = get_openai_client()
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(body=body)}],
-            response_format={
-                "type": "json_schema",
-                "json_schema": JSON_SCHEMA
-            },
-            service_tier="flex"
-        )
-        
-        # json is now imported at module level
-        parsed = json.loads(response.choices[0].message.content)
-        sightings = parsed.get("sightings", [])
-        
-        # Validate that sightings is a list and contains dicts
-        if not isinstance(sightings, list):
-            logger.error(f"Expected sightings to be a list, got {type(sightings)}: {sightings}")
-            return []
-        
-        # Filter out non-dict items and log them
-        valid_sightings = []
-        for i, sight in enumerate(sightings):
-            if isinstance(sight, dict):
-                # Validate required fields
-                if all(key in sight for key in ["time", "zone", "direction", "count"]):
-                    valid_sightings.append(sight)
+    # Retry configuration
+    max_retries = 3
+    base_delay = 1  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(body=body)}],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": JSON_SCHEMA
+                },
+                service_tier="flex",
+                timeout=30  # Add timeout
+            )
+            
+            # json is now imported at module level
+            parsed = json.loads(response.choices[0].message.content)
+            sightings = parsed.get("sightings", [])
+            
+            # Validate that sightings is a list and contains dicts
+            if not isinstance(sightings, list):
+                logger.error(f"Expected sightings to be a list, got {type(sightings)}: {sightings}")
+                return []
+            
+            # Filter out non-dict items and log them
+            valid_sightings = []
+            for i, sight in enumerate(sightings):
+                if isinstance(sight, dict):
+                    # Validate required fields
+                    if all(key in sight for key in ["time", "zone", "direction", "count"]):
+                        valid_sightings.append(sight)
+                    else:
+                        missing_keys = [key for key in ["time", "zone", "direction", "count"] if key not in sight]
+                        logger.warning(f"Sighting {i} missing required keys {missing_keys}: {sight}")
                 else:
-                    missing_keys = [key for key in ["time", "zone", "direction", "count"] if key not in sight]
-                    logger.warning(f"Sighting {i} missing required keys {missing_keys}: {sight}")
-            else:
-                logger.warning(f"Sighting {i} is not a dict, got {type(sight)}: {sight}")
-        
-        logger.debug(f"Extracted {len(valid_sightings)} valid sightings out of {len(sightings)} total")
-        return valid_sightings
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON response: {e}")
-        logger.error(f"Raw response: {response.choices[0].message.content if 'response' in locals() else 'No response'}")
-        return []
-    except openai.BadRequestError as e:
-        logger.error(f"OpenAI API error: {e}")
-        return []
-    except Exception as e:
-        logger.error(f"Failed to extract sightings: {e}")
-        return []
+                    logger.warning(f"Sighting {i} is not a dict, got {type(sight)}: {sight}")
+            
+            logger.debug(f"Extracted {len(valid_sightings)} valid sightings out of {len(sightings)} total")
+            return valid_sightings
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Raw response: {response.choices[0].message.content if 'response' in locals() else 'No response'}")
+            return []
+        except openai.APITimeoutError as e:
+            logger.warning(f"OpenAI API timeout (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                logger.info(f"Retrying in {delay:.2f} seconds...")
+                time.sleep(delay)
+                continue
+            return []
+        except openai.RateLimitError as e:
+            logger.warning(f"OpenAI rate limit hit (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(5, 10)  # Longer delay for rate limits
+                logger.info(f"Retrying in {delay:.2f} seconds...")
+                time.sleep(delay)
+                continue
+            return []
+        except openai.APIError as e:
+            if e.status_code == 500:
+                logger.warning(f"OpenAI server error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.info(f"Retrying in {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    continue
+            logger.error(f"OpenAI API error: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Failed to extract sightings: {e}")
+            return []
+    
+    logger.error(f"Failed to extract sightings after {max_retries} attempts")
+    return []
 
 @transaction.atomic
 def process_unprocessed_reports(limit: int = 25):
