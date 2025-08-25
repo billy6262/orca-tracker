@@ -39,6 +39,7 @@ class Zone(models.Model):
 class Prediction(models.Model):
     """Model to store predictions about Orca sightings."""
     orca_sighting = models.ForeignKey(OrcaSighting, on_delete=models.CASCADE, related_name='predictions')
+    date_created = models.DateTimeField(auto_now_add=True)
     predicted_time = models.DateTimeField()
     predicted_zone = models.CharField(max_length=100)
     confidence = models.FloatField()

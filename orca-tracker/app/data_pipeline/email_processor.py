@@ -266,7 +266,7 @@ def _extract_sightings(body: str) -> List[Dict[str, Any]]:
                     "json_schema": JSON_SCHEMA
                 },
                 service_tier="flex",
-                timeout=30  # Add timeout
+                #timeout=30  # Add timeout
             )
             
             # json is now imported at module level
