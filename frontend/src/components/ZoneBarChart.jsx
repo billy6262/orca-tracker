@@ -130,7 +130,7 @@ const ZoneBarChart = () => {
                         label={{ value: 'Zone Number', position: 'insideBottom', offset: -5 }}
                       />
                       <YAxis 
-                        label={{ value: 'Number of Sightings', angle: -90, position: 'insideLeft' }}
+                        label={{ value: 'Number of Sightings', angle: -90, position: 'outsideRight' ,dx: -25}}
                       />
                       <Tooltip 
                         formatter={(value) => [value, 'Sightings']}
@@ -142,6 +142,7 @@ const ZoneBarChart = () => {
                         fill="#0d6efd" 
                         name="Sightings"
                         radius={[4, 4, 0, 0]}
+                        
                       />
                     </BarChart>
                   </ResponsiveContainer>

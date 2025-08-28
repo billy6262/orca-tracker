@@ -2,22 +2,20 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
-import ZoneBarChart from './components/ZoneBarChart'
+import Navbar from './components/Navbar.jsx';
+import ZoneBarChart from './components/ZoneBarChart.jsx';
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
     <>
-      {/* Bootstrap Navbar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        {/* ...existing navbar code... */}
-      </nav>
+      <Navbar />
+
+      <ZoneBarChart />
 
       {/* Main content */}
       <div className="container mt-4">
-        <ZoneBarChart />
-        
         <div>
           <a href="https://vitejs.dev" target="_blank" rel="noreferrer">
             <img src={viteLogo} className="logo" alt="Vite logo" />

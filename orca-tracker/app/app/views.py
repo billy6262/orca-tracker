@@ -14,7 +14,7 @@ def get_raw_reports_by_date_range(request, start_date, end_date):
 
 @api_view(['GET'])
 def get_sightings_by_date_range(request, start_date, end_date):
-    sightings = models.OrcaSighting.objects.filter(time__range=[start_date, end_date])
+    sightings = models.OrcaSighting.objects.filter(time__range=[start_date, end_date], present=True)
     serializer = OrcaSightingSerializer(sightings, many=True)
     return Response(serializer.data)
 
@@ -23,7 +23,7 @@ def get_sightings_by_zone_count(request, start_date, end_date):
     """Get aggregated sighting counts by zone for the date range."""
     zone_counts = (
         models.OrcaSighting.objects
-        .filter(time__range=[start_date, end_date])
+        .filter(time__range=[start_date, end_date], present=True)
         .values('zone')
         .annotate(count=Count('id'))
         .order_by('zone')

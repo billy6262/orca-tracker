@@ -200,7 +200,10 @@ def _coerce_int(value):
         return None
 
 def _calc_derived_fields(dt):
-    return dt.month, dt.isoweekday(), dt.hour
+    if dt.isoweekday() in (5, 6):
+        return dt.month, dt.isoweekday(), dt.hour, True
+    else:
+        return dt.month, dt.isoweekday(), dt.hour, False
 
 def _create_sighting(raw: RawReport, data: Dict[str, Any]):
     """Create OrcaSighting with derived placeholder stats (0 for now)."""
@@ -222,8 +225,8 @@ def _create_sighting(raw: RawReport, data: Dict[str, Any]):
     except Exception:
         logger.warning(f"Could not parse time '{data.get('time')}' for report {raw.messageId}")
         return
-    
-    month, dow, hour = _calc_derived_fields(dt)
+
+    month, dow, hour, weekend    = _calc_derived_fields(dt)
     count = _coerce_int(data.get("count"))
     if count is None or count < 0:
         logger.warning(f"Invalid count '{data.get('count')}' for report {raw.messageId}")
@@ -242,7 +245,9 @@ def _create_sighting(raw: RawReport, data: Dict[str, Any]):
             reportsIn5h=0,
             reportsIn24h=0,
             reportsInAdjacentZonesIn5h=0,
-            reportsInAdjacentPlusZonesIn5h=0
+            reportsInAdjacentPlusZonesIn5h=0,
+            isWeekend= weekend,
+            present = True
         )
     except Exception as e:
         logger.error(f"Failed to create OrcaSighting for report {raw.messageId}: {e}")
@@ -265,7 +270,7 @@ def _extract_sightings(body: str) -> List[Dict[str, Any]]:
                     "type": "json_schema",
                     "json_schema": JSON_SCHEMA
                 },
-                service_tier="flex",
+                #service_tier="flex",
                 #timeout=30  # Add timeout
             )
             

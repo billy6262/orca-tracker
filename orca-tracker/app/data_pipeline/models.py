@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models import Q, UniqueConstraint
+from django.db.models.functions import TruncHour
 
 # Create your models here.
 
@@ -13,7 +15,12 @@ class RawReport(models.Model):
 
 class OrcaSighting(models.Model):
     """Model to store Orca sightings."""
-    raw_report = models.ForeignKey(RawReport, on_delete=models.DO_NOTHING, related_name='sightings')
+    raw_report = models.ForeignKey(
+        RawReport,
+        on_delete=models.DO_NOTHING,
+        related_name='sightings',
+        null=True, blank=True,   # allow absence rows to have no raw report
+    )
     time = models.DateTimeField()
     zone = models.CharField(max_length=100)
     direction = models.CharField(max_length=50)
@@ -21,11 +28,29 @@ class OrcaSighting(models.Model):
     month = models.PositiveIntegerField()   # for seasonality
     dayOfWeek = models.PositiveIntegerField()   # 1-7
     hour = models.PositiveIntegerField() # 0-23
-    reportsIn5h = models.PositiveIntegerField() # in same zone
-    reportsIn24h = models.PositiveIntegerField()
-    reportsInAdjacentZonesIn5h = models.PositiveIntegerField() # immediately adjacent zones
-    reportsInAdjacentPlusZonesIn5h = models.PositiveIntegerField() # next adjacent zones
 
+    # Recency metrics - allow null so absences can leave blank
+    reportsIn5h = models.PositiveIntegerField(null=True, blank=True)
+    reportsIn24h = models.PositiveIntegerField(null=True, blank=True)
+    reportsInAdjacentZonesIn5h = models.PositiveIntegerField(null=True, blank=True)
+    reportsInAdjacentPlusZonesIn5h = models.PositiveIntegerField(null=True, blank=True)
+
+    present = models.BooleanField(default=True)
+    timeSinceLastSighting = models.DurationField(null=True, blank=True)
+    isWeekend = models.BooleanField(default=False)
+
+    # Leave sunUp blank for absences
+    sunUp = models.BooleanField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            # Ensure at most one absence per zone per hour (DB-enforced)
+            UniqueConstraint(
+                name='uq_absence_zone_per_hour',
+                expressions=[TruncHour('time'), models.F('zone')],
+                condition=Q(present=False),
+            ),
+        ]
 
 class Zone(models.Model):
     """Model to store geographic zones."""
@@ -43,3 +68,15 @@ class Prediction(models.Model):
     predicted_time = models.DateTimeField()
     predicted_zone = models.CharField(max_length=100)
     confidence = models.FloatField()
+
+class ZoneSeasonality(models.Model):
+    """Model to store seasonal information about zones."""
+    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='seasonality')
+    month = models.PositiveIntegerField()
+    avg_sightings = models.FloatField()
+
+class ZoneEffort(models.Model):
+    """Model to store effort information about zones."""
+    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='effort')
+    hour = models.PositiveIntegerField()
+    avg_sightings = models.FloatField()
