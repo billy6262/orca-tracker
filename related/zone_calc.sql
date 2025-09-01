@@ -22,67 +22,88 @@ DECLARE
   t_local time;
   sunrise time;
   sunset time;
+  last_sighting_time timestamp with time zone;
 BEGIN
-  -- Normalize zone number (ok even if present=false)
+  -- Normalize zone number (ok for both present and absent records)
   BEGIN
     zone_num := NEW."zone"::int;
   EXCEPTION WHEN invalid_text_representation THEN
     zone_num := NULL;
   END;
 
-  IF NEW."present" IS TRUE THEN
-    -- sunUp by month (local time assumed)
-    IF NEW."time" IS NOT NULL THEN
-      m := EXTRACT(MONTH FROM NEW."time")::int;
-      t_local := (NEW."time")::time;
+  -- Calculate sunUp for ALL records (present and absent) based on timestamp
+  IF NEW."time" IS NOT NULL THEN
+    m := EXTRACT(MONTH FROM NEW."time")::int;
+    t_local := (NEW."time")::time;
 
-      CASE m
-        WHEN 1 THEN sunrise := TIME '08:00'; sunset := TIME '16:30';
-        WHEN 2 THEN sunrise := TIME '07:30'; sunset := TIME '17:30';
-        WHEN 3 THEN sunrise := TIME '07:00'; sunset := TIME '19:15';
-        WHEN 4 THEN sunrise := TIME '06:30'; sunset := TIME '20:00';
-        WHEN 5 THEN sunrise := TIME '05:30'; sunset := TIME '20:45';
-        WHEN 6 THEN sunrise := TIME '05:10'; sunset := TIME '21:05';
-        WHEN 7 THEN sunrise := TIME '05:20'; sunset := TIME '20:55';
-        WHEN 8 THEN sunrise := TIME '05:50'; sunset := TIME '20:20';
-        WHEN 9 THEN sunrise := TIME '06:35'; sunset := TIME '19:25';
-        WHEN 10 THEN sunrise := TIME '07:10'; sunset := TIME '18:20';
-        WHEN 11 THEN sunrise := TIME '07:50'; sunset := TIME '16:40';
-        WHEN 12 THEN sunrise := TIME '08:05'; sunset := TIME '16:20';
-        ELSE  sunrise := TIME '08:00'; sunset := TIME '17:00';
-      END CASE;
+    CASE m
+      WHEN 1 THEN sunrise := TIME '08:00'; sunset := TIME '16:30';
+      WHEN 2 THEN sunrise := TIME '07:30'; sunset := TIME '17:30';
+      WHEN 3 THEN sunrise := TIME '07:00'; sunset := TIME '19:15';
+      WHEN 4 THEN sunrise := TIME '06:30'; sunset := TIME '20:00';
+      WHEN 5 THEN sunrise := TIME '05:30'; sunset := TIME '20:45';
+      WHEN 6 THEN sunrise := TIME '05:10'; sunset := TIME '21:05';
+      WHEN 7 THEN sunrise := TIME '05:20'; sunset := TIME '20:55';
+      WHEN 8 THEN sunrise := TIME '05:50'; sunset := TIME '20:20';
+      WHEN 9 THEN sunrise := TIME '06:35'; sunset := TIME '19:25';
+      WHEN 10 THEN sunrise := TIME '07:10'; sunset := TIME '18:20';
+      WHEN 11 THEN sunrise := TIME '07:50'; sunset := TIME '16:40';
+      WHEN 12 THEN sunrise := TIME '08:05'; sunset := TIME '16:20';
+      ELSE  sunrise := TIME '08:00'; sunset := TIME '17:00';
+    END CASE;
 
-      NEW."sunUp" := (t_local >= sunrise AND t_local < sunset);
-    END IF;
+    -- Expand daylight window: sunrise 30m earlier, sunset 30m later
+    sunrise := sunrise - INTERVAL '30 minutes';
+    sunset  := sunset  + INTERVAL '30 minutes';
 
-    -- Recency windows expanded by 30 min on both sides
-    SELECT COUNT(*) INTO NEW."reportsIn5h"
-    FROM "data_pipeline_orcasighting" os
-    WHERE os."zone" = NEW."zone"
-      AND os."present" IS TRUE
-      AND os."time" >= NEW."time" - INTERVAL '5 hours 30 minutes'
-      AND os."time" <  NEW."time" + INTERVAL '30 minutes'
-      AND (os."id" IS DISTINCT FROM NEW."id");
+    NEW."sunUp" := (t_local >= sunrise AND t_local < sunset);
+  END IF;
 
-    SELECT COUNT(*) INTO NEW."reportsIn24h"
-    FROM "data_pipeline_orcasighting" os
-    WHERE os."zone" = NEW."zone"
-      AND os."present" IS TRUE
-      AND os."time" >= NEW."time" - INTERVAL '24 hours 30 minutes'
-      AND os."time" <  NEW."time" + INTERVAL '30 minutes'
-      AND (os."id" IS DISTINCT FROM NEW."id");
+  -- Calculate time since last sighting for ALL records (only counts present=TRUE sightings)
+  SELECT MAX(os."time") INTO last_sighting_time
+  FROM "data_pipeline_orcasighting" os
+  WHERE os."zone" = NEW."zone"
+    AND os."present" IS TRUE  -- Only count present sightings
+    AND os."time" < NEW."time"  -- Must be before current record
+    AND (os."id" IS DISTINCT FROM NEW."id");  -- Exclude self
 
-    IF zone_num IS NULL THEN
-      NEW."reportsInAdjacentZonesIn5h" := 0;
-      NEW."reportsInAdjacentPlusZonesIn5h" := 0;
-      RETURN NEW;
-    END IF;
+  IF last_sighting_time IS NOT NULL THEN
+    NEW."timeSinceLastSighting" := NEW."time" - last_sighting_time;
+  ELSE
+    -- No previous sighting found, leave NULL
+    NEW."timeSinceLastSighting" := NULL;
+  END IF;
 
+  -- Calculate recency windows for ALL records (only counts present=TRUE sightings)
+  -- 6h window: [t-6h, t+1h)
+  SELECT COUNT(*) INTO NEW."reportsIn5h"
+  FROM "data_pipeline_orcasighting" os
+  WHERE os."zone" = NEW."zone"
+    AND os."present" IS TRUE  -- Only count present sightings
+    AND os."time" >= NEW."time" - INTERVAL '6 hours'
+    AND os."time" <  NEW."time" + INTERVAL '1 hour'
+    AND (os."id" IS DISTINCT FROM NEW."id");
+
+  -- 25h window: [t-25h, t+1h)
+  SELECT COUNT(*) INTO NEW."reportsIn24h"
+  FROM "data_pipeline_orcasighting" os
+  WHERE os."zone" = NEW."zone"
+    AND os."present" IS TRUE  -- Only count present sightings
+    AND os."time" >= NEW."time" - INTERVAL '25 hours'
+    AND os."time" <  NEW."time" + INTERVAL '1 hour'
+    AND (os."id" IS DISTINCT FROM NEW."id");
+
+  -- Handle adjacent zone calculations for ALL records
+  IF zone_num IS NULL THEN
+    NEW."reportsInAdjacentZonesIn5h" := 0;
+    NEW."reportsInAdjacentPlusZonesIn5h" := 0;
+  ELSE
+    -- Adjacent 6h window: [t-6h, t+1h) - only counts present=TRUE sightings
     SELECT COUNT(*) INTO NEW."reportsInAdjacentZonesIn5h"
     FROM "data_pipeline_orcasighting" os
-    WHERE os."present" IS TRUE
-      AND os."time" >= NEW."time" - INTERVAL '5 hours 30 minutes'
-      AND os."time" <  NEW."time" + INTERVAL '30 minutes'
+    WHERE os."present" IS TRUE  -- Only count present sightings
+      AND os."time" >= NEW."time" - INTERVAL '6 hours'
+      AND os."time" <  NEW."time" + INTERVAL '1 hour'
       AND (os."id" IS DISTINCT FROM NEW."id")
       AND (os."zone")::int IN (
         SELECT az."to_zone_id"
@@ -90,24 +111,18 @@ BEGIN
         WHERE az."from_zone_id" = zone_num
       );
 
+    -- Next-adjacent 6h window: [t-6h, t+1h) - only counts present=TRUE sightings
     SELECT COUNT(*) INTO NEW."reportsInAdjacentPlusZonesIn5h"
     FROM "data_pipeline_orcasighting" os
-    WHERE os."present" IS TRUE
-      AND os."time" >= NEW."time" - INTERVAL '5 hours 30 minutes'
-      AND os."time" <  NEW."time" + INTERVAL '30 minutes'
+    WHERE os."present" IS TRUE  -- Only count present sightings
+      AND os."time" >= NEW."time" - INTERVAL '6 hours'
+      AND os."time" <  NEW."time" + INTERVAL '1 hour'
       AND (os."id" IS DISTINCT FROM NEW."id")
       AND (os."zone")::int IN (
         SELECT naz."to_zone_id"
         FROM "data_pipeline_zone_nextAdjacentZones" naz
         WHERE naz."from_zone_id" = zone_num
       );
-  ELSE
-    -- Absence rows: leave recency and sunUp blank
-    NEW."reportsIn5h" := NULL;
-    NEW."reportsIn24h" := NULL;
-    NEW."reportsInAdjacentZonesIn5h" := NULL;
-    NEW."reportsInAdjacentPlusZonesIn5h" := NULL;
-    NEW."sunUp" := NULL;
   END IF;
 
   RETURN NEW;

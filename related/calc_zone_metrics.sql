@@ -1,67 +1,171 @@
 BEGIN;
 
--- Seasonality: average sightings per calendar day by (zone, month)
-TRUNCATE TABLE "data_pipeline_zoneseasonality";
+-- Function to update ZoneSeasonality for a specific zone/month
+CREATE OR REPLACE FUNCTION fn_update_zone_seasonality(p_zone_number int, p_month int)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  avg_sightings_val float;
+BEGIN
+  -- Calculate average sightings per calendar day for this zone/month
+  WITH monthly AS (
+    SELECT
+      DATE_TRUNC('month', s."time") AS month_start,
+      COUNT(*)::bigint AS sightings_in_month,
+      (
+        (DATE_TRUNC('month', s."time") + INTERVAL '1 month - 1 day')::date
+        - DATE_TRUNC('month', s."time")::date + 1
+      ) AS days_in_month
+    FROM "data_pipeline_orcasighting" s
+    WHERE s."present" IS TRUE
+      AND s."zone" ~ '^[0-9]+$'
+      AND s."zone"::int = p_zone_number
+      AND EXTRACT(MONTH FROM s."time")::int = p_month
+    GROUP BY DATE_TRUNC('month', s."time")
+  )
+  SELECT COALESCE(
+    SUM(sightings_in_month)::float / NULLIF(SUM(days_in_month), 0),
+    0.0
+  ) INTO avg_sightings_val
+  FROM monthly;
 
-WITH monthly AS (
-  SELECT
-    z."zoneNumber"                                  AS zone_id,
-    EXTRACT(MONTH FROM s."time")::int               AS month,
-    DATE_TRUNC('month', s."time")                   AS month_start,
-    COUNT(*)::bigint                                AS sightings_in_month,
-    (
-      (DATE_TRUNC('month', s."time") + INTERVAL '1 month - 1 day')::date
-      - DATE_TRUNC('month', s."time")::date + 1
-    )                                               AS days_in_month
-  FROM "data_pipeline_orcasighting" s
-  JOIN "data_pipeline_zone" z
-    ON z."zoneNumber" = s."zone"::int
-  WHERE s."present" IS TRUE
-    AND s."zone" ~ '^[0-9]+$'  -- ensure numeric before cast
-  GROUP BY z."zoneNumber", EXTRACT(MONTH FROM s."time"), DATE_TRUNC('month', s."time")
-),
-agg AS (
-  -- Average per calendar day across all years for that month
-  SELECT
-    zone_id,
-    month,
-    SUM(sightings_in_month)::float / NULLIF(SUM(days_in_month), 0) AS avg_sightings
-  FROM monthly
-  GROUP BY zone_id, month
-)
-INSERT INTO "data_pipeline_zoneseasonality" ("zone_id", "month", "avg_sightings")
-SELECT zone_id, month, COALESCE(avg_sightings, 0.0)
-FROM agg
-ORDER BY zone_id, month;
+  -- Insert or update the seasonality record
+  INSERT INTO "data_pipeline_zoneseasonality" ("zone_id", "month", "avg_sightings")
+  VALUES (p_zone_number, p_month, avg_sightings_val)
+  ON CONFLICT ("zone_id", "month")
+  DO UPDATE SET "avg_sightings" = EXCLUDED."avg_sightings";
+END;
+$$;
 
--- Effort: average sightings per day by (zone, hour-of-day)
-TRUNCATE TABLE "data_pipeline_zoneeffort";
+-- Function to update ZoneEffort for a specific zone/hour
+CREATE OR REPLACE FUNCTION fn_update_zone_effort(p_zone_number int, p_hour int)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  avg_sightings_val float;
+BEGIN
+  -- Calculate average sightings per day for this zone/hour
+  WITH hourly_daily AS (
+    SELECT
+      s."time"::date AS day,
+      COUNT(*)::int AS sightings
+    FROM "data_pipeline_orcasighting" s
+    WHERE s."present" IS TRUE
+      AND s."zone" ~ '^[0-9]+$'
+      AND s."zone"::int = p_zone_number
+      AND EXTRACT(HOUR FROM s."time")::int = p_hour
+    GROUP BY s."time"::date
+  )
+  SELECT COALESCE(AVG(sightings)::float, 0.0) INTO avg_sightings_val
+  FROM hourly_daily;
 
-WITH hourly_daily AS (
-  SELECT
-    z."zoneNumber"                    AS zone_id,
-    EXTRACT(HOUR FROM s."time")::int  AS hour,
-    s."time"::date                    AS day,
-    COUNT(*)::int                     AS sightings
-  FROM "data_pipeline_orcasighting" s
-  JOIN "data_pipeline_zone" z
-    ON z."zoneNumber" = s."zone"::int
-  WHERE s."present" IS TRUE
-    AND s."zone" ~ '^[0-9]+$'
-  GROUP BY z."zoneNumber", EXTRACT(HOUR FROM s."time"), s."time"::date
-),
-agg2 AS (
-  -- Average per day for that hour across all days in the dataset
-  SELECT
-    zone_id,
-    hour,
-    AVG(sightings)::float AS avg_sightings
-  FROM hourly_daily
-  GROUP BY zone_id, hour
-)
-INSERT INTO "data_pipeline_zoneeffort" ("zone_id", "hour", "avg_sightings")
-SELECT zone_id, hour, avg_sightings
-FROM agg2
-ORDER BY zone_id, hour;
+  -- Insert or update the effort record
+  INSERT INTO "data_pipeline_zoneeffort" ("zone_id", "hour", "avg_sightings")
+  VALUES (p_zone_number, p_hour, avg_sightings_val)
+  ON CONFLICT ("zone_id", "hour")
+  DO UPDATE SET "avg_sightings" = EXCLUDED."avg_sightings";
+END;
+$$;
+
+-- Trigger function for OrcaSighting changes
+CREATE OR REPLACE FUNCTION fn_update_zone_metrics()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  zone_num_old int;
+  zone_num_new int;
+  month_old int;
+  month_new int;
+  hour_old int;
+  hour_new int;
+BEGIN
+  -- Handle INSERT
+  IF TG_OP = 'INSERT' THEN
+    IF NEW."present" IS TRUE AND NEW."zone" ~ '^[0-9]+$' THEN
+      zone_num_new := NEW."zone"::int;
+      month_new := EXTRACT(MONTH FROM NEW."time")::int;
+      hour_new := EXTRACT(HOUR FROM NEW."time")::int;
+      
+      PERFORM fn_update_zone_seasonality(zone_num_new, month_new);
+      PERFORM fn_update_zone_effort(zone_num_new, hour_new);
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Handle DELETE
+  IF TG_OP = 'DELETE' THEN
+    IF OLD."present" IS TRUE AND OLD."zone" ~ '^[0-9]+$' THEN
+      zone_num_old := OLD."zone"::int;
+      month_old := EXTRACT(MONTH FROM OLD."time")::int;
+      hour_old := EXTRACT(HOUR FROM OLD."time")::int;
+      
+      PERFORM fn_update_zone_seasonality(zone_num_old, month_old);
+      PERFORM fn_update_zone_effort(zone_num_old, hour_old);
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  -- Handle UPDATE
+  IF TG_OP = 'UPDATE' THEN
+    -- Update metrics for old values if they were present=true
+    IF OLD."present" IS TRUE AND OLD."zone" ~ '^[0-9]+$' THEN
+      zone_num_old := OLD."zone"::int;
+      month_old := EXTRACT(MONTH FROM OLD."time")::int;
+      hour_old := EXTRACT(HOUR FROM OLD."time")::int;
+      
+      PERFORM fn_update_zone_seasonality(zone_num_old, month_old);
+      PERFORM fn_update_zone_effort(zone_num_old, hour_old);
+    END IF;
+    
+    -- Update metrics for new values if they are present=true
+    IF NEW."present" IS TRUE AND NEW."zone" ~ '^[0-9]+$' THEN
+      zone_num_new := NEW."zone"::int;
+      month_new := EXTRACT(MONTH FROM NEW."time")::int;
+      hour_new := EXTRACT(HOUR FROM NEW."time")::int;
+      
+      PERFORM fn_update_zone_seasonality(zone_num_new, month_new);
+      PERFORM fn_update_zone_effort(zone_num_new, hour_new);
+    END IF;
+    
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+-- Create the trigger
+DROP TRIGGER IF EXISTS trg_orcasighting_zone_metrics ON "data_pipeline_orcasighting";
+CREATE TRIGGER trg_orcasighting_zone_metrics
+AFTER INSERT OR UPDATE OR DELETE ON "data_pipeline_orcasighting"
+FOR EACH ROW
+EXECUTE FUNCTION fn_update_zone_metrics();
+
+-- Add unique constraints using DO block to handle if they exist
+DO $$
+BEGIN
+    -- Add seasonality constraint if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'uq_seasonality_zone_month'
+    ) THEN
+        ALTER TABLE "data_pipeline_zoneseasonality" 
+        ADD CONSTRAINT uq_seasonality_zone_month 
+        UNIQUE ("zone_id", "month");
+    END IF;
+    
+    -- Add effort constraint if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'uq_effort_zone_hour'
+    ) THEN
+        ALTER TABLE "data_pipeline_zoneeffort" 
+        ADD CONSTRAINT uq_effort_zone_hour 
+        UNIQUE ("zone_id", "hour");
+    END IF;
+END $$;
 
 COMMIT;

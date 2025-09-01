@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from dateutil import parser as dtparser
 from django.db import transaction
 import openai
-from .models import RawReport, OrcaSighting
+from .models import RawReport, OrcaSighting, Zone
 import chardet  # Add this import for encoding detection
 import time
 import random
@@ -205,8 +205,24 @@ def _calc_derived_fields(dt):
     else:
         return dt.month, dt.isoweekday(), dt.hour, False
 
+def _get_zone_by_number(zone_value):
+    """
+    Get Zone instance by zone number/string. 
+    Returns Zone instance or None if not found.
+    """
+    if not zone_value:
+        return None
+    
+    # Try to convert zone to integer
+    try:
+        zone_number = int(str(zone_value).strip())
+        return Zone.objects.filter(zoneNumber=zone_number).first()
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid zone value: {zone_value}")
+        return None
+
 def _create_sighting(raw: RawReport, data: Dict[str, Any]):
-    """Create OrcaSighting with derived placeholder stats (0 for now)."""
+    """Create OrcaSighting with new nullable fields left blank (None)."""
     # Check if data is a string instead of a dict
     if isinstance(data, str):
         logger.warning(f"Received string instead of dict for sighting data: {data[:100]}... - skipping")
@@ -226,29 +242,42 @@ def _create_sighting(raw: RawReport, data: Dict[str, Any]):
         logger.warning(f"Could not parse time '{data.get('time')}' for report {raw.messageId}")
         return
 
-    month, dow, hour, weekend    = _calc_derived_fields(dt)
+    month, dow, hour, weekend = _calc_derived_fields(dt)
     count = _coerce_int(data.get("count"))
     if count is None or count < 0:
         logger.warning(f"Invalid count '{data.get('count')}' for report {raw.messageId}")
         return
     
+    # Get zone string and Zone foreign key
+    zone_str = data.get("zone", "").strip()[:100]
+    zone_instance = _get_zone_by_number(zone_str)
+    
+    # Log warning if zone not found but continue with creation
+    if zone_str.isdigit() and not zone_instance:
+        logger.warning(f"Zone {zone_str} not found in database for report {raw.messageId}")
+    
     try:
         OrcaSighting.objects.create(
             raw_report=raw,
             time=dt,
-            zone=data.get("zone", "").strip()[:100],
+            zone=zone_str,  # Keep original zone string
+            ZoneNumber=zone_instance,  # Set foreign key (can be None)
             direction=data.get("direction", "").strip()[:50],
             count=count,
             month=month,
             dayOfWeek=dow,
             hour=hour,
-            reportsIn5h=0,
-            reportsIn24h=0,
-            reportsInAdjacentZonesIn5h=0,
-            reportsInAdjacentPlusZonesIn5h=0,
-            isWeekend= weekend,
-            present = True
+            # Leave new/derived fields blank; DB triggers will populate for present=True
+            reportsIn5h=None,
+            reportsIn24h=None,
+            reportsInAdjacentZonesIn5h=None,
+            reportsInAdjacentPlusZonesIn5h=None,
+            timeSinceLastSighting=None,
+            sunUp=None,
+            isWeekend=weekend,
+            present=True,
         )
+        logger.debug(f"Created sighting for zone {zone_str} with ZoneNumber: {zone_instance}")
     except Exception as e:
         logger.error(f"Failed to create OrcaSighting for report {raw.messageId}: {e}")
 
@@ -339,6 +368,7 @@ def _extract_sightings(body: str) -> List[Dict[str, Any]]:
 @transaction.atomic
 def process_unprocessed_reports(limit: int = 25):
     reports = RawReport.objects.select_for_update(skip_locked=True).filter(processed=False)[:limit]
+    logger.info(f"Reports to process: {len(reports)}")
     for report in reports:
         try:
             sightings = _extract_sightings(report.body)

@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     volumes:
       - ./orca-tracker/app:/app
-      - ./orca-tracker/secrets:/secrets:ro
+      - ./orca-tracker/secrets:/secrets
     command: >
       sh -c "python manage.py wait_for_db &&
              python manage.py migrate &&
@@ -22,7 +22,7 @@ services:
       - DB_NAME=orca_tracker
       - DB_USER=orca
       - DB_PASS=orca
-      - OPENAI_MODEL=gpt-5-mini
+      - OPENAI_MODEL=gpt-5
     depends_on:
       - db
 

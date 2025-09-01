@@ -3,6 +3,15 @@ from django.db.models import Q, UniqueConstraint
 from django.db.models.functions import TruncHour
 
 # Create your models here.
+class Zone(models.Model):
+    """Model to store geographic zones."""
+    name = models.CharField(max_length=100, unique=True)
+    zoneNumber = models.PositiveIntegerField(primary_key=True)
+    adjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='adjacent_to')
+    nextAdjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='next_adjacent_to')
+    boundary = models.TextField()  # GeoJSON or WKT representation
+    localities = models.TextField()  # List of localities within the zone
+
 
 class RawReport(models.Model):
     """Model to store raw email reports."""
@@ -17,12 +26,20 @@ class OrcaSighting(models.Model):
     """Model to store Orca sightings."""
     raw_report = models.ForeignKey(
         RawReport,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='sightings',
         null=True, blank=True,   # allow absence rows to have no raw report
     )
     time = models.DateTimeField()
     zone = models.CharField(max_length=100)
+    ZoneNumber = models.ForeignKey(
+        Zone, 
+        on_delete=models.CASCADE,
+        related_name='sightings', 
+        to_field='zoneNumber',
+        null=True, 
+        blank=True
+    )
     direction = models.CharField(max_length=50)
     count = models.PositiveIntegerField()
     month = models.PositiveIntegerField()   # for seasonality
@@ -44,22 +61,14 @@ class OrcaSighting(models.Model):
 
     class Meta:
         constraints = [
-            # Ensure at most one absence per zone per hour (DB-enforced)
             UniqueConstraint(
+                TruncHour('time'),
+                models.F('zone'),
                 name='uq_absence_zone_per_hour',
-                expressions=[TruncHour('time'), models.F('zone')],
                 condition=Q(present=False),
             ),
         ]
 
-class Zone(models.Model):
-    """Model to store geographic zones."""
-    name = models.CharField(max_length=100, unique=True)
-    zoneNumber = models.PositiveIntegerField(primary_key=True)
-    adjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='adjacent_to')
-    nextAdjacentZones = models.ManyToManyField("self", symmetrical=False, blank=True, related_name='next_adjacent_to')
-    boundary = models.TextField()  # GeoJSON or WKT representation
-    localities = models.TextField()  # List of localities within the zone
 
 class Prediction(models.Model):
     """Model to store predictions about Orca sightings."""

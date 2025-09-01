@@ -37,48 +37,78 @@ def get_gmail_service():
     service = build('gmail', 'v1', credentials=creds)
     return service
 
+def _b64decode(s: str) -> str:
+    if not s:
+        return ''
+    try:
+        return base64.urlsafe_b64decode(s.encode('utf-8')).decode('utf-8', errors='replace')
+    except Exception:
+        try:
+            return base64.urlsafe_b64decode((s + '===').encode('utf-8')).decode('utf-8', errors='replace')
+        except Exception:
+            return ''
+
+def _fetch_attachment_text(service, msg_id: str, attachment_id: str) -> str:
+    try:
+        att = service.users().messages().attachments().get(userId='me', messageId=msg_id, id=attachment_id).execute()
+        return _b64decode(att.get('data', ''))
+    except Exception as e:
+        logger.debug(f"Attachment fetch failed for {msg_id}:{attachment_id} - {e}")
+        return ''
+
+def _iter_text_parts(service, msg_id: str, payload):
+    """Yield decoded text bodies for 'text/*' parts (recurses into multiparts)."""
+    if not payload:
+        return
+    mime = payload.get('mimeType', '')
+    if mime.startswith('multipart/'):
+        for p in payload.get('parts', []) or []:
+            yield from _iter_text_parts(service, msg_id, p)
+        return
+    if mime.startswith('text/'):
+        body = payload.get('body', {}) or {}
+        data = body.get('data')
+        text = _b64decode(data) if data else ''
+        if not text:
+            att_id = body.get('attachmentId')
+            if att_id:
+                text = _fetch_attachment_text(service, msg_id, att_id)
+        if text:
+            yield text
+
 def get_emails():
     service = get_gmail_service()
-    results = service.users().messages().list(
-        userId='me',
-        labelIds=['INBOX'],
-        q='is:unread',
-        maxResults=20 
-    ).execute()
-    messages = results.get('messages', [])
-    for msg in messages:
-        msg_detail = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
-        headers = msg_detail['payload']['headers']
+    res = service.users().messages().list(userId='me', labelIds=['INBOX'], q='is:unread', maxResults=20).execute()
+    for msg in res.get('messages', []):
+        detail = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
+        headers = detail.get('payload', {}).get('headers', [])
         subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
         sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
-        body = ''
-        # Get plain text body
-        if 'parts' in msg_detail['payload']:
-            for part in msg_detail['payload']['parts']:
-                if part['mimeType'] == 'text/plain':
-                    body = part['body'].get('data', '')
-                    if body:
-                        # Decode from base64
-                        body = base64.urlsafe_b64decode(body.encode('utf-8')).decode('utf-8')
-                    break
-        else:
-            if msg_detail['payload']['mimeType'] == 'text/plain':
-                body = msg_detail['payload']['body'].get('data', '')
-                if body:
-                    # Decode from base64
-                    body = base64.urlsafe_b64decode(body.encode('utf-8')).decode('utf-8')
-        try:
-            if not RawReport.objects.filter(messageId=msg['id']).exists(): # Check if the report already exists
-                # Create a new RawReport instance
-                RawReport.objects.create(
-                    messageId=msg['id'],  # Store the message ID to avoid duplicates
-                    subject=subject,
-                    sender=sender,
-                    body=body
-                )
-                logger.info(f"Saved email from {sender} with subject '{subject}' to database.")
-        except Exception as e:
-            logger.error(f"Error saving email to database: {e}")
+
+        parts = list(_iter_text_parts(service, msg['id'], detail.get('payload', {})))
+        # Fallback: single body if no parts
+        if not parts:
+            body = _b64decode(detail.get('payload', {}).get('body', {}).get('data', ''))
+            if body:
+                parts = [body]
+
+        if not parts:
+            logger.info(f"No text content for message {msg['id']} - skipped")
+            continue
+
+        for idx, body_text in enumerate(parts, start=1):
+            part_msg_id = msg['id'] if idx == 1 else f"{msg['id']}pt{idx}"
+            try:
+                if not RawReport.objects.filter(messageId=part_msg_id).exists():
+                    RawReport.objects.create(
+                        messageId=part_msg_id,
+                        subject=subject,
+                        sender=sender,
+                        body=body_text
+                    )
+                    logger.info(f"Saved {('part ' + str(idx)) if idx > 1 else 'message'} from {sender} | subject '{subject}' | id {part_msg_id}")
+            except Exception as e:
+                logger.error(f"Failed to save RawReport {part_msg_id}: {e}")
 
 
 
