@@ -3,6 +3,7 @@
 # OS
 .DS_Store
 Thumbs.db
+Pre-Prod/Raw_text_reports
 
 # Node / Vite
 frontend/node_modules/

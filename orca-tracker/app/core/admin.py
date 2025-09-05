@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as CoreUserAdmin
+from data_pipeline.prediction_generator import load_models, generate_predictions
 from core import models
 from data_pipeline import models as dp_models
 from data_pipeline.email_retriver import get_emails 
@@ -41,6 +42,7 @@ class RawReportAdmin(admin.ModelAdmin):
 
 
 class OrcaSightingAdmin(admin.ModelAdmin):
+    actions = ['generate_new_predictions']
     list_display = ['id', 'time', 'zone', 'ZoneNumber', 'present', 'count', 'direction', 'sunUp']
     list_display_links = ['id']
     date_hierarchy = 'time'
@@ -50,8 +52,13 @@ class OrcaSightingAdmin(admin.ModelAdmin):
     list_per_page = 50
     readonly_fields = ['month', 'dayOfWeek', 'hour', 'reportsIn5h', 'reportsIn24h', 
                       'reportsInAdjacentZonesIn5h', 'reportsInAdjacentPlusZonesIn5h']
-
-
+    
+    def generate_new_predictions(self, request, queryset):
+        for sighting in queryset:
+            if sighting.present:
+                load_models()
+                generate_predictions(sighting)
+        self.message_user(request, "New predictions generated for selected sightings.")
 class ZoneAdmin(admin.ModelAdmin):
     list_display = ['zoneNumber', 'name', 'get_adjacent_count', 'get_next_adjacent_count']
     list_display_links = ['zoneNumber', 'name']
@@ -68,14 +75,73 @@ class ZoneAdmin(admin.ModelAdmin):
     get_next_adjacent_count.short_description = 'Next Adjacent Zones'
 
 
-class PredictionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'orca_sighting', 'date_created', 'predicted_time', 'predicted_zone', 'confidence']
+class ZonePredictionInline(admin.TabularInline):
+    """Inline admin for ZonePrediction within PredictionBucket."""
+    model = dp_models.ZonePrediction
+    extra = 0
+    readonly_fields = ['rank', 'is_top_5']
+    fields = ['zone', 'zone_number', 'probability', 'rank', 'is_top_5']
+    ordering = ['rank']
+
+
+class PredictionBucketInline(admin.TabularInline):
+    """Inline admin for PredictionBucket within PredictionBatch."""
+    model = dp_models.PredictionBucket
+    extra = 0
+    readonly_fields = ['overall_probability']
+    fields = ['time_bucket', 'bucket_start_hour', 'bucket_end_hour', 
+              'forecast_start_time', 'forecast_end_time', 'overall_probability']
+    ordering = ['bucket_start_hour']
+
+
+class PredictionBatchAdmin(admin.ModelAdmin):
+    """Admin for PredictionBatch - the main prediction container."""
+    list_display = ['id', 'source_sighting', 'created_at', 'model_version', 'overall_confidence', 'get_bucket_count']
     list_display_links = ['id']
-    date_hierarchy = 'date_created'
-    list_filter = ['predicted_zone', 'date_created']
-    search_fields = ['id', 'predicted_zone']
-    ordering = ['-date_created']
+    date_hierarchy = 'created_at'
+    list_filter = ['created_at', 'model_version', 'overall_confidence']
+    search_fields = ['id', 'source_sighting__id', 'source_sighting__zone']
+    ordering = ['-created_at']
+    list_per_page = 25
+    inlines = [PredictionBucketInline]
+    readonly_fields = ['created_at']
+    
+    def get_bucket_count(self, obj):
+        return obj.buckets.count()
+    get_bucket_count.short_description = 'Time Buckets'
+
+
+
+
+class PredictionBucketAdmin(admin.ModelAdmin):
+    """Admin for PredictionBucket - time-based prediction windows."""
+    list_display = ['id', 'batch', 'time_bucket', 'forecast_start_time', 'forecast_end_time', 
+                   'overall_probability', 'get_zone_count']
+    list_display_links = ['id', 'time_bucket']
+    date_hierarchy = 'forecast_start_time'
+    list_filter = ['time_bucket', 'batch__created_at', 'batch__overall_confidence']
+    search_fields = ['id', 'batch__id', 'time_bucket']
+    ordering = ['-batch__created_at', 'bucket_start_hour']
     list_per_page = 50
+    inlines = [ZonePredictionInline]
+    
+    def get_zone_count(self, obj):
+        return obj.zone_predictions.count()
+    get_zone_count.short_description = 'Zone Predictions'
+
+
+class ZonePredictionAdmin(admin.ModelAdmin):
+    """Admin for ZonePrediction - individual zone probability predictions."""
+    list_display = ['id', 'bucket', 'zone', 'probability', 'rank', 'is_top_5', 'get_time_bucket']
+    list_display_links = ['id']
+    list_filter = ['is_top_5', 'bucket__time_bucket', 'zone', 'bucket__batch__created_at']
+    search_fields = ['id', 'zone', 'bucket__batch__id']
+    ordering = ['-bucket__batch__created_at', 'bucket__bucket_start_hour', 'rank']
+    list_per_page = 100
+    
+    def get_time_bucket(self, obj):
+        return obj.bucket.time_bucket
+    get_time_bucket.short_description = 'Time Bucket'
 
 
 class ZoneSeasonalityAdmin(admin.ModelAdmin):
@@ -101,6 +167,12 @@ admin.site.register(models.User, UserAdmin)
 admin.site.register(dp_models.RawReport, RawReportAdmin)
 admin.site.register(dp_models.OrcaSighting, OrcaSightingAdmin)
 admin.site.register(dp_models.Zone, ZoneAdmin)
-admin.site.register(dp_models.Prediction, PredictionAdmin)
+
+# Register the prediction models
+admin.site.register(dp_models.PredictionBatch, PredictionBatchAdmin)
+admin.site.register(dp_models.PredictionBucket, PredictionBucketAdmin)
+admin.site.register(dp_models.ZonePrediction, ZonePredictionAdmin)
+
+# Other models
 admin.site.register(dp_models.ZoneSeasonality, ZoneSeasonalityAdmin)
 admin.site.register(dp_models.ZoneEffort, ZoneEffortAdmin)
