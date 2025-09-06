@@ -76,3 +76,15 @@ def get_predictions_most_recent(request):
     }
     
     return Response(response_data)
+
+@api_view(['GET'])
+def get_sightings_count_by_hour(request, start_date, end_date):
+    """Get aggregated sighting counts by hour for the date range. Must be in YYYY-MM-DD."""
+    sightings = (
+        models.OrcaSighting.objects
+        .filter(time__range=[start_date, end_date], present=True)
+        .values('hour')
+        .annotate(count=Count('id'))
+    )
+
+    return Response(sightings)
