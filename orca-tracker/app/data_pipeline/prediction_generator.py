@@ -8,7 +8,7 @@ from django.conf import settings
 from datetime import timedelta
 import logging
 
-number_of_buckets = 3
+number_of_buckets = 8
 MODEL_DIRECTORY = os.path.join(settings.BASE_DIR, "MLmodels")
 BUCKET_MODELS = {}
 ZONE_ENCODING = None
@@ -24,12 +24,12 @@ def load_models():
 
     try: 
         # label encoding for the model
-        ZONE_ENCODING = joblib.load(os.path.join(MODEL_DIRECTORY, "zone_encoder_full_dataset.pkl")) 
+        ZONE_ENCODING = joblib.load(os.path.join(MODEL_DIRECTORY, "zone_encoder.pkl")) 
         # feature columns to match trained model
-        FEATURE_COLUMNS = joblib.load(os.path.join(MODEL_DIRECTORY, "feature_columns_full_dataset.pkl"))
+        FEATURE_COLUMNS = joblib.load(os.path.join(MODEL_DIRECTORY, "features.pkl"))
 
         for bucket in range(len(TIME_BUCKETS)):  #loading individual models for each time bucket
-            model_path = os.path.join(MODEL_DIRECTORY, f"orca_xgboost_full_dataset_bucket_{bucket}.pkl")
+            model_path = os.path.join(MODEL_DIRECTORY, f"orca_model_bucket_{bucket}.pkl")
             model = joblib.load(model_path)
             BUCKET_MODELS[bucket] = model
         logging.info("Models loaded successfully.")
@@ -57,8 +57,10 @@ def prep_sightings(sighting):
     feature_data['ZoneNumber_id'] = sighting.ZoneNumber.zoneNumber
     if sighting.timeSinceLastSighting:
         feature_data['timeSinceLastSighting_hours'] = sighting.timeSinceLastSighting.total_seconds() / 3600
+        feature_data['hours_since_last'] = sighting.timeSinceLastSighting.total_seconds() / 3600
     else:
         feature_data['timeSinceLastSighting_hours'] = 0
+        feature_data['hours_since_last'] = 0
 
     feature_data['zone_num'] = ZONE_ENCODING.transform([sighting.zone])[0]
     # Zone number handling

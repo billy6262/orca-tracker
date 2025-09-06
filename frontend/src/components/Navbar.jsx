@@ -23,7 +23,12 @@ function Navbar() {
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
               <li className="nav-item">
                 <a className="nav-link active" aria-current="page" href="#">
-                  Dashboard
+                  Map
+                </a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#">
+                  Charts
                 </a>
               </li>
               <li className="nav-item">
@@ -37,11 +42,7 @@ function Navbar() {
                 </a>
               </li>
             </ul>
-            <div className="d-flex">
-              <a className="btn btn-outline-light btn-sm" href="#">
-                Login
-              </a>
-            </div>
+
           </div>
         </div>
       </nav>

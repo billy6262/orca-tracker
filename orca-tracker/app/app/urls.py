@@ -27,4 +27,5 @@ urlpatterns = [
     path('api/reports/<str:start_date>/<str:end_date>/', app.views.get_raw_reports_by_date_range, name='raw-reports-by-date'),
     path('api/sightings/<str:start_date>/<str:end_date>/', app.views.get_sightings_by_date_range, name='sightings-by-date'),
     path('api/sightings/zones/<str:start_date>/<str:end_date>/', app.views.get_sightings_by_zone_count, name='sightings-by-zone-count'),
+    path('api/predictions/recent/', app.views.get_predictions_most_recent, name='predictions-most-recent'),
 ]

@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view
 from app.serializers import RawReportSerializer, OrcaSightingSerializer,PredictionBatchSerializer, PredictionBucketSerializer, ZonePredictionSerializer
 from django.db.models import Count
 from core.management.commands.generate_predictions import Command
+import time
 
 @api_view(['GET'])
 def get_raw_reports_by_date_range(request, start_date, end_date):
@@ -55,6 +56,7 @@ def get_predictions_most_recent(request):
     latest_batch = models.PredictionBatch.objects.filter(source_sighting=latest_sighting).order_by('-created_at').first()
     if not latest_batch:
         Command().handle()
+        time.sleep(2)  # Wait a moment for the batch to be created
         latest_batch = models.PredictionBatch.objects.filter(source_sighting=latest_sighting).order_by('-created_at').first()
     # Serialize the predictions and related data
     batch_serializer = PredictionBatchSerializer(latest_batch)
