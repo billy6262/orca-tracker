@@ -1,26 +1,24 @@
-import { useState } from 'react'
-import './App.css'
-import Navbar from './components/Navbar.jsx';
-import ZoneBarChart from './components/ZoneBarChart.jsx';
-import { DateProvider } from './components/Constants.jsx';
-import ChartsDateBar from './components/ChartsDateBar.jsx';
-import PieChart  from './components/HourlyPieChart.jsx';
-import HourlyPieChart from './components/HourlyPieChart.jsx';
+import './App.css';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from './layouts/Layout.jsx';
+import MapPage from './pages/MapPage.jsx';
+import ChartsPage from './pages/ChartsPage.jsx';
+//import ReportsPage from './pages/ReportsPage.jsx';
+//import AboutPage from './pages/AboutPage.jsx';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <DateProvider>
-      <Navbar />
-      <ChartsDateBar />
-      <ZoneBarChart />
-      <HourlyPieChart/>
-      {/* Main content */}
-      </DateProvider>
-    </>
-  )
+    <Router>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<MapPage />} />
+          <Route path="/charts" element={<ChartsPage />} />
+
+          <Route path="*" element={<div className="container">Not Found</div>} />
+        </Route>
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;

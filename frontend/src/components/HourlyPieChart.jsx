@@ -106,10 +106,12 @@ const HourlyPieChart = () => {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value, _name, props) => [
-                          value,
-                          `Hour ${props.payload.hour}:00`
-                        ]}
+                        formatter={(value, _name, props) => {
+                          const pct = totalSightings
+                            ? ((value / totalSightings) * 100).toFixed(1)
+                            : '0.0';
+                          return [`${value} (${pct}%)`, `Hour ${props.payload.hour}:00`];
+                        }}
                       />
                       <Legend
                         layout="horizontal"
