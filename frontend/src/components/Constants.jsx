@@ -4,8 +4,10 @@ import React, { createContext, useContext, useState } from 'react';
 
 //context for the date picker for the charts page
 const DateContext = createContext();
+const TimeBucket = createContext();
 
 export const useDateRange = () => useContext(DateContext);
+export const useTimeBucket = () => useContext(TimeBucket);
 
 export const DateProvider = ({ children }) => {
     const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30))); // Default to 30 days ago
@@ -24,5 +26,18 @@ export const DateProvider = ({ children }) => {
         <DateContext.Provider value={{ startDate, endDate, updateDate, formatDate }}>
             {children}
         </DateContext.Provider>
+    );
+};
+
+export const TimeBucketProvider = ({ children }) => {  // Context for time bucket selection
+    const [timeBucket, setTimeBucket] = useState(0); // Default to 0-6 hours
+
+    const updateTimeBucket = (bucket) => {
+        setTimeBucket(bucket);
+    }
+    return (
+        <TimeBucket.Provider value={{ timeBucket, updateTimeBucket }}>
+            {children}
+        </TimeBucket.Provider>
     );
 };

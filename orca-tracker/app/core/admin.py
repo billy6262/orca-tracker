@@ -4,7 +4,7 @@ from data_pipeline.prediction_generator import load_models, generate_predictions
 from core import models
 from data_pipeline import models as dp_models
 from data_pipeline.email_retriver import get_emails 
-
+from data_pipeline.email_processor import process_unprocessed_reports
 
 class UserAdmin(CoreUserAdmin):
     """Define the admin pages for users."""
@@ -26,7 +26,7 @@ class UserAdmin(CoreUserAdmin):
 
 
 class RawReportAdmin(admin.ModelAdmin):
-    actions = ['fetch_email_reports']
+    actions = ['fetch_email_reports', 'process_reports']
     list_display = ['id', 'timeRecived', 'messageId', 'subject', 'sender', 'processed']
     list_display_links = ['id', 'messageId']
     date_hierarchy = 'timeRecived'
@@ -39,6 +39,9 @@ class RawReportAdmin(admin.ModelAdmin):
         get_emails()
         self.message_user(request, "Email reports fetched and stored.")
     fetch_email_reports.short_description = "Fetch email reports from inbox"
+
+    def process_reports(self, request, queryset):
+        process_unprocessed_reports() 
 
 
 class OrcaSightingAdmin(admin.ModelAdmin):

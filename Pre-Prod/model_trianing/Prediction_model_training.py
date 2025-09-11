@@ -83,7 +83,6 @@ def build_training_data(data, batch_size=5000):
     print(f"Done. Created {len(results)} training examples")
     return pd.DataFrame(results)
 
-print("\n=== BUILDING TRAINING DATASET ===")
 training_data = build_training_data(df, batch_size=5000)
 target_columns = [col for col in training_data.columns if col.startswith('bucket_')]
 
