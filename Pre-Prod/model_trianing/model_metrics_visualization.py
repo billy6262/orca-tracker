@@ -12,19 +12,13 @@ warnings.filterwarnings('ignore')
 plt.style.use('default')
 sns.set_palette("husl")
 
-class ModelMetricsVisualizer:
-    """
-    Class for generating model performance plots and metrics.
-    """
-    
+class ModelMetricsVisualizer:    
     def __init__(self, save_dir='./model_metrics/'):
-        """Set up the output directory."""
         import os
         self.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
         
     def plot_roc_curves(self, models, X_test, y_test, bucket_names, save_name='roc_curves.png'):
-        """Plot ROC curves for the zone models."""
         
         # Figure out subplot layout
         fig, axes = plt.subplots(1, len(models), figsize=(6*len(models), 5))
@@ -79,9 +73,7 @@ class ModelMetricsVisualizer:
         
         return np.mean(all_auc_scores), all_auc_scores
     
-    def plot_precision_recall_curves(self, models, X_test, y_test, bucket_names, save_name='precision_recall_curves.png'):
-        """PR curves - more useful than ROC for imbalanced data."""
-        
+    def plot_precision_recall_curves(self, models, X_test, y_test, bucket_names, save_name='precision_recall_curves.png'):        
         fig, axes = plt.subplots(1, len(models), figsize=(6*len(models), 5))
         if len(models) == 1:
             axes = [axes]
@@ -111,10 +103,9 @@ class ModelMetricsVisualizer:
                         except:
                             continue
             
-            # Show the baseline (random classifier performance)
+
             baseline = y_bucket.sum().sum() / len(y_bucket)
             ax.axhline(y=baseline, color='k', linestyle='--', alpha=0.5, label=f'Baseline = {baseline:.3f}')
-            
             ax.set_xlim([0.0, 1.0])
             ax.set_ylim([0.0, 1.05])
             ax.set_xlabel('Recall')
@@ -134,8 +125,6 @@ class ModelMetricsVisualizer:
         return np.mean(all_ap_scores), all_ap_scores
     
     def plot_feature_importance(self, models, feature_columns, save_name='feature_importance.png'):
-        """Feature importance plots. Aggregated across all models."""
-        
         # Collect importance from all models
         all_importances = []
         model_names = []
@@ -192,8 +181,6 @@ class ModelMetricsVisualizer:
         return mean_importance, std_importance
     
     def plot_model_performance_summary(self, models, X_test, y_test, bucket_names, save_name='performance_summary.png'):
-        """Big summary plot with 6 panels. This function got messy but it works."""
-        
         # Extract performance metrics for all zone models
         performance_data = []
         
@@ -233,10 +220,7 @@ class ModelMetricsVisualizer:
                             # Skip failed models
                             continue
         
-        if not performance_data:
-            print("No performance data available")
-            return
-        
+
         perf_df = pd.DataFrame(performance_data)
         
         # 2x3 subplot grid
@@ -326,7 +310,6 @@ class ModelMetricsVisualizer:
         return perf_df
     
     def plot_prediction_calibration(self, models, X_test, y_test, bucket_names, save_name='calibration_plots.png'):
-        """Calibration plots to check if predicted probabilities are realistic."""
         
         fig, axes = plt.subplots(1, len(models), figsize=(6*len(models), 5))
         if len(models) == 1:
@@ -336,7 +319,7 @@ class ModelMetricsVisualizer:
             bucket_name = bucket_names[bucket_idx]
             y_bucket = y_test.filter(regex=f'bucket_{bucket_idx}_')
             
-            # Aggregate all predictions for this bucket
+            # Agregate all predictions for this bucket
             all_y_true = []
             all_y_prob = []
             
@@ -376,8 +359,6 @@ class ModelMetricsVisualizer:
         plt.close()
     
     def plot_confusion_matrices(self, models, X_test, y_test, bucket_names, save_name='confusion_matrices.png'):
-        """Confusion matrices for each time bucket."""
-        
         fig, axes = plt.subplots(1, len(models), figsize=(5*len(models), 4))
         if len(models) == 1:
             axes = [axes]
@@ -419,7 +400,6 @@ class ModelMetricsVisualizer:
         plt.close()
     
     def generate_comprehensive_report(self, models, X_test, y_test, bucket_names, feature_columns):
-        """Run all the visualization functions and return summary stats."""
         
         # Run all the plotting functions
         mean_auc, all_aucs = self.plot_roc_curves(models, X_test, y_test, bucket_names)
@@ -444,21 +424,6 @@ class ModelMetricsVisualizer:
         return summary_stats
 
 def create_model_visualizations(models, X_test, y_test, bucket_names, feature_columns, save_dir='./model_metrics/'):
-    """
-    Main function to generate all the model visualization plots.
-    
-    Args:
-        models: Dict of trained XGBoost models organized by bucket
-        X_test: Test feature data
-        y_test: Test target data  
-        bucket_names: Names for the time buckets
-        feature_columns: List of feature names
-        save_dir: Where to save the plot files
-    
-    Returns:
-        Dict with summary stats and performance info
-    """
-    
     visualizer = ModelMetricsVisualizer(save_dir)
     summary_stats = visualizer.generate_comprehensive_report(
         models, X_test, y_test, bucket_names, feature_columns

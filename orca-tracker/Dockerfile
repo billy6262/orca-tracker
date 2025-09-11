@@ -17,9 +17,6 @@ RUN python -m venv /py &&\
     apt-get install -y --no-install-recommends \
     build-essential libpq-dev &&\
     /py/bin/pip install -r /tmp/requirements.txt &&\
-    if [ $DEV = "true" ]; \
-    then /py/bin/pip install -r /tmp/requirements.dev.txt; \
-    fi &&\
     apt-get purge -y --auto-remove build-essential libpq-dev &&\
     rm -rf /var/lib/apt/lists/* /tmp &&\
     adduser \

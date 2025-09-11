@@ -17,10 +17,6 @@ engine = create_engine(DB_CONNECTION)
 df = pd.read_sql('SELECT * FROM "data_pipeline_orcasighting"', engine)
 df['time'] = pd.to_datetime(df['time'])
 df = df.sort_values('time').reset_index(drop=True)
-print(f"Dataset size: {len(df)}")
-print(f"Sightings: {len(df[df['present'] == True])} ({len(df[df['present'] == True])/len(df)*100:.1f}%)")
-print(f"Absences: {len(df[df['present'] == False])} ({len(df[df['present'] == False])/len(df)*100:.1f}%)")
-
 
 # Time buckets - 6 hour windows for next 2 days
 buckets = [(i, i+6) for i in range(0, 48, 6)]  
@@ -77,17 +73,13 @@ def build_training_data(data, batch_size=5000):
             results.append(row_dict)
         
         # memory cleanup
-        if len(results) % 50000 == 0 and len(results) > 0:
+        if len(results) % 50000 == 0 and len(results) > 0: # print progress for longer runs
             print(f"  {len(results)} examples processed...")
     
-    print(f"Done. Created {len(results)} training examples")
     return pd.DataFrame(results)
 
 training_data = build_training_data(df, batch_size=5000)
 target_columns = [col for col in training_data.columns if col.startswith('bucket_')]
-
-print(f"Training data shape: {training_data.shape}")
-print(f"Target columns: {len(target_columns)}")
 
 # Feature setup
 features = [
@@ -115,16 +107,6 @@ for col in features:
 
 X = training_data[features].copy()
 
-# quick check for missing data
-missing = X.isnull().sum()
-if missing.sum() > 0:
-    print("Still have missing values:")
-    print(missing[missing > 0])
-
-print(f"\nFeature summary:")
-print(f"Number of features: {len(features)}")
-print(f"Training samples: {len(X)}")
-print(f"Sightings ratio: {X['present'].mean()*100:.1f}%")
 
 # group targets by bucket
 bucket_targets = {}
@@ -134,18 +116,10 @@ for i in range(len(buckets)):
 
 def train_bucket_models(X_train, y_targets, bucket_name):
     """Train models for each zone in a time bucket"""
-    
-    target_counts = y_targets.sum()
-    zones_with_data = target_counts[target_counts > 0]
-    
-    print(f"Training {bucket_name} - {len(zones_with_data)} zones have sightings")
-    
     # simple 80/20 split by time (chronological)
     split_point = int(len(X_train) * 0.8)
     X_tr, X_te = X_train.iloc[:split_point], X_train.iloc[split_point:]
     y_tr, y_te = y_targets.iloc[:split_point], y_targets.iloc[split_point:]
-    
-    print(f"Train: {len(X_tr)}, Test: {len(X_te)}")
     
     # store models for each zone
     zone_models = {}
@@ -153,8 +127,6 @@ def train_bucket_models(X_train, y_targets, bucket_name):
     zone_probs = {}
     
     for target_col in y_targets.columns:
-        zone = target_col.split('_zone_')[-1]
-        
         y_train_zone = y_tr[target_col]
         y_test_zone = y_te[target_col]
         
@@ -166,8 +138,7 @@ def train_bucket_models(X_train, y_targets, bucket_name):
         pos = y_train_zone.sum()
         neg = len(y_train_zone) - pos
         weight = neg / pos if pos > 0 else 1
-        
-        print(f"  Zone {zone}: {pos} positive samples ({pos/len(y_train_zone):.4f})")
+
         
         # xgboost params - tuned through trial and error
         params = {
@@ -206,38 +177,7 @@ def train_bucket_models(X_train, y_targets, bucket_name):
         zone_models[target_col] = model
         zone_preds[target_col] = preds
         zone_probs[target_col] = probs
-        
-        # print metrics for zones with actual sightings
-        if y_test_zone.sum() > 0:
-            try:
-                auc = roc_auc_score(y_test_zone, probs)
-                logloss_val = log_loss(y_test_zone, probs)
-                
-                tp = ((y_test_zone == 1) & (preds == 1)).sum()
-                fp = ((y_test_zone == 0) & (preds == 1)).sum()
-                fn = ((y_test_zone == 1) & (preds == 0)).sum()
-                
-                prec = tp / (tp + fp) if (tp + fp) > 0 else 0
-                rec = tp / (tp + fn) if (tp + fn) > 0 else 0
-                
-                print(f"    {zone} - AUC: {auc:.3f}, Prec: {prec:.3f}, Rec: {rec:.3f}, Loss: {logloss_val:.3f}")
-            except:
-                pass
-    
-    # overall bucket performance
-    if zone_preds:
-        aucs = []
-        for col in zone_preds.keys():
-            if y_te[col].sum() > 0:
-                try:
-                    auc_val = roc_auc_score(y_te[col], zone_probs[col])
-                    aucs.append(auc_val)
-                except:
-                    pass
-        
-        if aucs:
-            print(f"Bucket average AUC: {np.mean(aucs):.3f}")
-    
+          
     return zone_models, zone_preds, zone_probs
 
 print("\n=== TRAINING MODELS ===")
@@ -254,8 +194,6 @@ for bucket_idx in range(len(buckets)):
 
 
 def make_predictions(features, models, encoder, top_n=5):
-    """Generate predictions for new data"""
-    
     pred_results = {}
     
     for bucket_id, bucket_models in models.items():
@@ -286,9 +224,6 @@ def make_predictions(features, models, encoder, top_n=5):
                 'overall_prob': min(1.0, overall)
             }
             
-            print(f"\n{bucket_name} predictions:")
-            for zone, prob in top_zones:
-                print(f"  {zone}: {prob:.3f}")
                 
         except Exception as e:
             # just skip if prediction fails
@@ -317,13 +252,6 @@ for bucket_id, bucket_models in all_models.items():
 joblib.dump(encoder, 'zone_encoder.pkl')
 joblib.dump(features, 'features.pkl')
 
-if len(all_models) > 0:
-    total_models = sum(len(bucket) for bucket in all_models.values())
-    print(f"TRAINING COMPLETE")
-    print(f"Models trained: {total_models}")
-    print(f"Data used: {len(X)} samples ({X['present'].mean()*100:.1f}% sightings)")
-
-
 # generate visualizations
 if len(all_models) > 0 and len(X) > 100:
     print("\n=== GENERATING CHARTS ===")
@@ -333,24 +261,12 @@ if len(all_models) > 0 and len(X) > 100:
     X_train_viz, X_test_viz, y_train_viz, y_test_viz = train_test_split(
         X, y_all, test_size=test_size, random_state=42)
     
-    try:
-        viz_results = create_model_visualizations(
-            models=all_models,
-            X_test=X_test_viz,
-            y_test=y_test_viz,
-            bucket_names=[bucket_labels[i] for i in all_models.keys()],
-            feature_columns=features,
-            save_dir='./charts/'
-        )
-        
-        print(f"Charts saved!")
-        print(f"ROC AUC: {viz_results['mean_auc']:.3f}")
-        print(f"Average Precision: {viz_results['mean_ap']:.3f}")
-        
-        print(f"Most important features:")
-        for feat, imp in list(viz_results['top_features'].items())[:5]:
-            print(f"  {feat}: {imp:.4f}")
-            
-    except Exception as e:
-        print(f"Chart generation failed: {e}")
-
+    # generating charts using the visualization module
+    viz_results = create_model_visualizations(
+        models=all_models,
+        X_test=X_test_viz,
+        y_test=y_test_viz,
+        bucket_names=[bucket_labels[i] for i in all_models.keys()],
+        feature_columns=features,
+        save_dir='./charts/'
+    )

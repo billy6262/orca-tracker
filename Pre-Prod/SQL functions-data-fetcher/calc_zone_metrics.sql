@@ -110,7 +110,6 @@ BEGIN
 
   -- Handle UPDATE
   IF TG_OP = 'UPDATE' THEN
-    -- Update metrics for old values if they were present=true
     IF OLD."present" IS TRUE AND OLD."zone" ~ '^[0-9]+$' THEN
       zone_num_old := OLD."zone"::int;
       month_old := EXTRACT(MONTH FROM OLD."time")::int;
@@ -120,7 +119,6 @@ BEGIN
       PERFORM fn_update_zone_effort(zone_num_old, hour_old);
     END IF;
     
-    -- Update metrics for new values if they are present=true
     IF NEW."present" IS TRUE AND NEW."zone" ~ '^[0-9]+$' THEN
       zone_num_new := NEW."zone"::int;
       month_new := EXTRACT(MONTH FROM NEW."time")::int;
@@ -144,7 +142,7 @@ AFTER INSERT OR UPDATE OR DELETE ON "data_pipeline_orcasighting"
 FOR EACH ROW
 EXECUTE FUNCTION fn_update_zone_metrics();
 
--- Add unique constraints using DO block to handle if they exist
+-- Add unique constraints 
 DO $$
 BEGIN
     -- Add seasonality constraint if it doesn't exist

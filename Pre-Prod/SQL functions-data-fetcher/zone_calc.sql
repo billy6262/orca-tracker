@@ -1,4 +1,4 @@
-BEGIN;  --"docker compose exec -T db psql -U orca -d orca_tracker -c 'UPDATE "data_pipeline_orcasighting" SET "zone"="zone";'"
+BEGIN;  --run to force update all rows "docker compose exec -T db psql -U orca -d orca_tracker -c 'UPDATE "data_pipeline_orcasighting" SET "zone"="zone";'"
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orcasighting_zone_time
@@ -24,14 +24,14 @@ DECLARE
   sunset time;
   last_sighting_time timestamp with time zone;
 BEGIN
-  -- Normalize zone number (ok for both present and absent records)
+  -- Normalize zone number
   BEGIN
     zone_num := NEW."zone"::int;
   EXCEPTION WHEN invalid_text_representation THEN
     zone_num := NULL;
   END;
 
-  -- Calculate sunUp for ALL records (present and absent) based on timestamp
+  -- Calculate sunUp flag for ALL records
   IF NEW."time" IS NOT NULL THEN
     m := EXTRACT(MONTH FROM NEW."time")::int;
     t_local := (NEW."time")::time;
@@ -52,7 +52,7 @@ BEGIN
       ELSE  sunrise := TIME '08:00'; sunset := TIME '17:00';
     END CASE;
 
-    -- Expand daylight window: sunrise 30m earlier, sunset 30m later
+    -- Expand daylight window: sunrise 30m earlier, sunset 30m later to account for twilight
     sunrise := sunrise - INTERVAL '30 minutes';
     sunset  := sunset  + INTERVAL '30 minutes';
 
@@ -63,8 +63,8 @@ BEGIN
   SELECT MAX(os."time") INTO last_sighting_time
   FROM "data_pipeline_orcasighting" os
   WHERE os."zone" = NEW."zone"
-    AND os."present" IS TRUE  -- Only count present sightings
-    AND os."time" < NEW."time"  -- Must be before current record
+    AND os."present" IS TRUE
+    AND os."time" < NEW."time"
     AND (os."id" IS DISTINCT FROM NEW."id");  -- Exclude self
 
   IF last_sighting_time IS NOT NULL THEN
@@ -74,7 +74,7 @@ BEGIN
     NEW."timeSinceLastSighting" := NULL;
   END IF;
 
-  -- Calculate recency windows for ALL records (only counts present=TRUE sightings)
+  -- Calculate recency windows for ALL records
   -- 6h window: [t-6h, t+1h)
   SELECT COUNT(*) INTO NEW."reportsIn5h"
   FROM "data_pipeline_orcasighting" os

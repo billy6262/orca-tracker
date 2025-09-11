@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install deps first for better caching
 COPY package*.json ./
-RUN npm install --no-audit --no-fund 
+RUN npm ci --no-audit --no-fund 
 #change to ci before deployment
 
 # Copy the rest of the app
