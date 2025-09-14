@@ -5,6 +5,8 @@ import MapLayout from './layouts/MapLayout.jsx';
 import MapPage from './pages/MapPage.jsx';
 import ChartsPage from './pages/ChartsPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import AboutPage from './pages/AboutPage.jsx';
+import TechnicalSummaryPage from './pages/TechnicalSummaryPage.jsx';
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/charts" element={<ChartsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/technical-summary" element={<TechnicalSummaryPage />} />
           <Route path="*" element={<div className="container">Not Found</div>} />
         </Route>
       </Routes>

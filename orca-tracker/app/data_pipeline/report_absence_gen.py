@@ -16,16 +16,11 @@ from .models import OrcaSighting, Zone, ZoneEffort, ZoneSeasonality
 logger = logging.getLogger(__name__)
 
 def _zone_adjacency_map() -> Dict[int, List[int]]:
-    """
-    Build a dict zoneNumber -> list of adjacent zoneNumbers.
-    Assumes Zone has a many-to-many 'adjacentZones' to Zone.
-    """
     zones = Zone.objects.prefetch_related("adjacentZones").only("zoneNumber")
     return {z.zoneNumber: [a.zoneNumber for a in z.adjacentZones.all()] for z in zones}
 
 
 def _build_weight_caches():
-    """Preload lookups so we don't hit the DB for every hour."""
     # Map zoneNumber -> Zone instance for foreign key lookup
     zones_by_number = {z.zoneNumber: z for z in Zone.objects.all()}
     

@@ -41,10 +41,16 @@ function Navbar() {
               </NavLink>
             </li>
             <li className="nav-item">
+              <NavLink to="/technical-summary" className={linkClass}>
+                Technical Summary
+              </NavLink>
+            </li>
+            <li className="nav-item">
               <NavLink to="/about" className={linkClass}>
                 About
               </NavLink>
             </li>
+
           </ul>
         </div>
       </div>
