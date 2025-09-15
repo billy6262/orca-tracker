@@ -1,0 +1,23 @@
+Orca Sightings for January 28, 2002
+============================================================
+
+Entry 1:
+Here's a wonderful report from Brad Hanson of NMML/NMFS regarding the information obtained from the tag (click
+HERE
+for Excel data graph) recovered from the transient male orca rescued from the Dungeness stranding earlier this month. Thanks to all who worked to develop this tag, and to Brad for sharing this report with our Sighting Network.
+*
+Hi Susan
+just wanted to pass along some details that folks might be interested in on the TDR recovery and I have attached an excel file with a plot of some of the TDR data - if you can figure out how to get it into a Word file or something else and not truncate the right half you are doing much better than me (
+Note: for those of you on the list who want the Excel attachment, please email Susan & we'll send it to you - in this latest flurry of computer viruses, I won't send out attachments to the entire list
+).
+Ken Balcomb called me last Friday night to tell me that he had obtained the TDR put out on CA188. He had received a call and email from Joe Barton of Shelton who was beachcombing on at Ocean Shores on 21 Jan and found the tag. There was no contact info on this tag (the info label that had been on it was written in Icelandic such that it had been recently removed), but apparently after talking to a coworker about what he had found Barton suspected this might be the tag from the whale. My understanding from Ken was that Barton’s wife contacted Ken from the contact info on their Center for Whale Research website. I went up Saturday and picked up the tag from Ken and down loaded the data. I have not had a chance to look at it all but plotted out a few hours from the last day, which was early Sunday morning - there is enough memory for about 3 days of data. So far it shows a very consistent pattern of a 2-2.5 minute dives to about 20-25 m followed by 7-11short dives within a few meters of the surface. He was traveling at a consistent 2-4 mph. So we can now conclude that it is very likely I did hear the signals on 6 Jan (tag was beeping when I picked it up from Ken) off the coast SW of Neah Bay.
+It is important to note that without the previous efforts of Robin Baird on TDR tagging of killer whales, the research emphasis by Ocean Futures on killer whales, and the current small cetacean telemetry program at the National Marine Mammal Lab, learning of the outcome of this rescue effort would have likely remained unknown. In addition we have gained some valuable dive data on transient type whales. The tag that had been placed on transient male CA188 was a design that has been commonly deployed on numerous species of cetaceans throughout the world. It has been deployed on killer whales in Iceland, Norway, southeast Alaska, as well on southern residents killer whales in Puget Sound. The configuration of this tag was designed by Robin Baird, of Dalhousie University. It is compromised of a small computer called a Time Depth Recorder (built by Wildlife Computers in Redmond WA) and a VHF transmitter that are mounted a piece of syntactic foam which allows the tag to float after the large suction cup, which is used to attach it to the skin of the whale skin, detaches after a few days. The data provided by these tags has provided fascinating insights into dive behavior of these species as well as raising new questions. For example, with southern resident killer whales, most salmon species they would be expected to be foraging on in their summer range are located in the top 30 m of the water column. So why is it that, in general, about two of their approximately 11 deep dives per hour are greater than 60 m, and some are as deep as 200m? Obtaining more of this type of data will be extremely important in assessing the questions that have been raised about the potential threat from changes in salmon abundance and reactions to whale watch vessels. If anyone is interested in seeing results from some of the diving studies on various species, Robin has posted scientific publications from some of this work on his
+web site
+. If you have additional questions about the deployment on CA188 let me know.
+Thanks
+Brad
+M. Bradley Hanson, Ph.D.
+National Marine Mammal Laboratory, NMFS, NOAA
+Seattle
+Sunday,
+
