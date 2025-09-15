@@ -35,6 +35,9 @@ const AboutPage = () => {
           <p>
             <strong>Email:</strong> <a href="mailto:andrew.dorchak98@gmail.com" style={{ color: '#0066cc', textDecoration: 'none' }}>andrew.dorchak98@gmail.com</a>
           </p>
+          <p>
+            <strong>GitHub Repository:</strong> <a href="https://github.com/billy6262/orca-tracker" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'none' }}>https://github.com/billy6262/orca-tracker</a>
+          </p>
         </div>
 
         <div style={{ marginBottom: '30px' }}>

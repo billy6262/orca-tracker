@@ -16,6 +16,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CSRF_TRUSTED_ORIGINS = ['https://orca.amdorchak.top']
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -23,11 +27,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 secrets_path = BASE_DIR.parent / 'secrets' / 'django_secret.txt'
 SECRET_KEY = open(secrets_path, 'r').read().strip()
 
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['orca-tracker.amdorchak.top', '.localhost'] 
+# FIX: use your actual frontend hostname
+ALLOWED_HOSTS = ['orca.amdorchak.top', 'localhost', '127.0.0.1']
+
+
+# --- HTTPS hardening behind proxy ---
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+# Optional extra hardening:
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
 
 
 # Application definition
@@ -59,6 +74,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'app.urls'
+
 
 TEMPLATES = [
     {
