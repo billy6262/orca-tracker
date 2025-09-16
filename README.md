@@ -1,9 +1,3 @@
-# Create the volume first
-docker volume create orca-tracker_dev-db-data
-
-# Restore from backup
-docker run --rm -v orca-tracker_dev-db-data:/data -v ${PWD}:/backup alpine tar xzf /backup/database-backup.tar.gz -C /data
-
 # About This Project
 
 This Orca Tracker application serves as my Computer Science capstone project, demonstrating the practical application of machine learning techniques in marine mammal conservation. The project showcases:
@@ -34,7 +28,7 @@ This functionality is embedded in the Django back-end.
 
 - methods and algorithms supporting data exploration and preparation
 
-This is evident in the web application. Additionally, in the pre-prod folder under model training is a Jupyter notebook labeled Data Exploration with the imported dataset. (The Docker container for the DB must be online and locally hosted to import the data. For dependencies, use VSCode and the virtual environment package in the .venv folder of the main directory. This method was not primarily utilized but is available for further exploration.)
+This is evident in the web application. Additionally, in the pre-prod folder under model training is a Jupyter notebook labeled Data Exploration with the imported dataset. (The Docker container for the DB must be online and locally hosted to import the data. Dependencies must be installed aswell.This method was not primarily utilized but is available for further exploration.)
 
 - data visualization functionalities for data exploration and inspection
 
@@ -43,15 +37,15 @@ This is evident in the web application.
 - implementation of interactive queries
 
 The Django admin page is available when locally hosted via http://localhost:8000/admin/. For security, this page is not available for the web-hosted version. (The Docker containers must be running to access this page.)
-Additionally, SQL queries may be directed to the server when locally hosted or the API is available via http://localhost:8000/api/docs/.
+Additionally, SQL queries may be directed to the server when locally hosted or the API is available via http://localhost:8000/api/docs/ or https://orca.amdorchak.top/api/docs/
 
 - implementation of machine-learning methods and algorithms
 
-This functionality is implemented in the Django backend.
+This functionality is implemented in the Django backend and evident in the predictions displayed on the front end.
 
 - functionalities to evaluate the accuracy of the data product
 
-In the pre-prod folder under the model_training folder is the model metrics visualization module. This can be used to generate accuracy metrics when the model is trained. All the metrics in the technical implementation document were generated with this module. (The Docker container for the DB must be online to import the data. For dependencies, use VSCode and the virtual environment package in the .venv folder of the main directory. This method was not primarily utilized but is available for further exploration.)
+In the pre-prod folder under the model_training folder is the model metrics visualization module. This can be used to generate accuracy metrics when the model is trained. All the metrics in the technical implementation document were generated with this module. (The Docker container for the DB must be online to import the data.Dependencies must be installed aswell. This method was not primarily utilized but is available for further exploration.)
 
 - industry-appropriate security features
 
