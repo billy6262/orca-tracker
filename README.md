@@ -1,3 +1,9 @@
+# Create the volume first
+docker volume create orca-tracker_dev-db-data
+
+# Restore from backup
+docker run --rm -v orca-tracker_dev-db-data:/data -v ${PWD}:/backup alpine tar xzf /backup/database-backup.tar.gz -C /data
+
 # About This Project
 
 This Orca Tracker application serves as my Computer Science capstone project, demonstrating the practical application of machine learning techniques in marine mammal conservation. The project showcases:
