@@ -4,8 +4,10 @@ WORKDIR /app
 
 # Install deps first for better caching
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund 
-#change to ci before deployment
+# Use install for dev images when lockfile may be missing/out-of-sync.
+# Switch back to `npm ci` once package-lock.json is committed and in sync.
+RUN npm install --no-audit --no-fund
+
 
 # Copy the rest of the app
 COPY . .

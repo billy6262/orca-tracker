@@ -30,11 +30,12 @@ SECRET_KEY = open(secrets_path, 'r').read().strip()
 DEBUG = False
 
 # FIX: use your actual frontend hostname
-ALLOWED_HOSTS = ['orca.amdorchak.top', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['orca.amdorchak.top', 'localhost', '127.0.0.1', '192.168.1.134','192.168.1.115']
 
 
 # --- HTTPS hardening behind proxy ---
-SECURE_SSL_REDIRECT = True
+# Disable SSL redirect since proxy makes HTTP requests to backend
+# SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 # Optional extra hardening:
@@ -167,6 +168,7 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev server
     "http://127.0.0.1:5173",  # Alternative localhost
+    "https://orca.amdorchak.top",  # Production frontend
 ]
 
 # For development only - allow all origins (less secure)
